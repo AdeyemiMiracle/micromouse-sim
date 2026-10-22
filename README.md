@@ -15,7 +15,7 @@ Open `index.html` in any modern browser (no build step, no server, no dependenci
 - **Restart run** — same maze, fresh map. **New maze** — regenerate the maze.
 - **Speed** — simulated-time multiplier (1×…16×). A full-map run is ~9 minutes of simulated time:
   ~7.5 min of exploration (256 cells), then the return to start, then the speed run.
-- **Strategy** — *Goal-first (reach goal, immediate optimisation)* (default) or
+- **Strategy** — *Goal-first (reach goal, then optimise)* (default) or
   *Full-map exploration*; see below. Switching it restarts the run.
 - Overlays: flood values, the true (still unknown) maze, sensor beams, trail.
 - **MPU yaw loop (gyroAlive)** — uncheck to reproduce the physical Grizzly, whose MPU is mounted so
@@ -43,7 +43,7 @@ MotorControl    signed PWM → TB6612FNG H-bridge → wheels
 
 Phases, exactly as in `runFloodFillSequence()`: **EXPLORE** → **RETURN** (flood to the start cell)
 → **SPEED** (flood to the centre 2 × 2 and drive the shortest path, drawn in green) → **DONE**.
-Only the *length* of the EXPLORE phase differs between the two strategies.
+Both strategies walk the same phases; they differ in how long EXPLORE runs and what it aims at.
 
 ## Two run strategies
 
@@ -54,29 +54,46 @@ They differ only in how much of the maze is mapped first.
 until every reachable cell (256) has been mapped. The sprint is then planned from a complete map,
 so its route is the true shortest path — but the run takes ~8–9 minutes of simulated time.
 
-**Goal-first — "reach goal, immediate optimisation"** (default). The mouse never maps the whole
-maze. EXPLORE floods straight at the centre, treating unknown cells as open, and stops the instant
-the car physically stands in a goal cell. The map is then optimised and the sprint is planned
-*immediately*, from what is known. The return and the sprint are routed only through corridors the
-mouse has actually observed (scanned or driven), so an unknown wall can never stop the sprint.
-The price is that the route is optimal **only for the known map**, so it is sometimes a few cells
-longer than the true optimum. The stats panel shows both numbers:
-*explored before sprint* and *sprint moves / optimal* (the optimal figure is the BFS shortest path
-through the true maze, shown as a yardstick).
+**Goal-first — "reach goal, then optimise"** (default). The mouse never maps the whole maze, and it
+does **not** turn round the moment it touches the centre either — the corridors it came in on are
+rarely the fastest ones. It runs in four steps:
+
+1. **Drive at the centre.** EXPLORE floods straight at the goal, treating unknown cells as open, and
+   re-plans whenever a wall turns up.
+2. **Keep exploring around the goal.** After first contact it keeps sweeping the cells that could
+   still shorten the route: a cell is worth visiting only while the shortest route that *could* run
+   `start → cell → goal` (unknown cells open, known walls respected) is shorter than the best route
+   the map already proves. Those cells are ranked by how far the car must drive to reach them, so the
+   sweep starts with the goal's own surroundings and works outward. It stops when no unexplored cell
+   can beat the known route — or after 120 extra cells, so a maze where every cell still looks
+   promising cannot turn into a full sweep.
+3. **Return to the start by the shortest *known* route** — by then usually a **different** route from
+   the way in, because step 2 mapped the alternatives.
+4. **Sprint** the best route in the map (green path).
+
+The return and the sprint are routed only through corridors the mouse has actually observed (scanned
+or driven), so an unknown wall can never stop the sprint. The price is that the route is optimal
+**only for the known map**, so it is occasionally a few cells longer than the true optimum. The stats
+panel shows both numbers: *cells explored (centre → sprint)* and *sprint moves / optimal* (the
+optimal figure is the BFS shortest path through the true maze, shown as a yardstick).
 
 Measured over 16 generated mazes (headless runs):
 
-| | Goal-first (immediate optimisation) | Full-map exploration |
+| | Goal-first (reach goal, then optimise) | Full-map exploration |
 | --- | --- | --- |
-| cells explored before the sprint | 19 – 118 (mean 51) | 256 |
-| simulated run time | 53 – 337 s (mean 142 s) | 481 – 570 s (mean 523 s) |
-| distance driven | 10 – 64 m (mean ≈ 27 m) | 90 – 107 m (mean ≈ 98 m) |
-| sprint vs true optimum | equal in 10/16 mazes, +2…+4 cells in 3, +25 and +55 in the two worst | equal in 16/16 |
+| cells mapped before the sprint | 21 – 167 (mean 72) | 256 |
+| — of those, before the centre was first reached | 20 – 91 (mean 48) | 34 – 205 (mean 96) |
+| — of those, while exploring around the goal | 0 – 133 (mean 24) | 51 – 232 (mean 160) |
+| simulated run time | 52 – 255 s (mean 149 s) | 491 – 530 s (mean 510 s) |
+| distance driven | 11 – 47 m (mean ≈ 29 m) | 92 – 99 m (mean ≈ 95 m) |
+| sprint vs true optimum | **equal in 16/16** | equal in 16/16 |
+| return route is the same as the way in | 4 / 16 (and often much shorter: 96→13, 56→17, 35→10 cells) | 0 / 16 |
 | goal reached | 16 / 16 | 16 / 16 |
 
-That is the trade-off in one line: goal-first cuts the run to roughly a quarter of the time and
-distance, and usually still finds the optimal route; occasionally it sprints a detour because a
-better corridor was still unexplored.
+In other words: goal-first maps ~28 % of the maze and takes ~29 % of the time and distance of a full
+sweep, and with the post-goal sweep it still sprints the true optimal route in every maze tested.
+Without that sweep (the previous "stop dead on the centre" version) it only matched the optimum in
+10/16, because it had never looked at the corridors it did not happen to drive through.
 
 ## Files
 
@@ -110,8 +127,8 @@ Headless runs over several generated mazes:
 
 - *Full-map exploration*: **256/256 cells mapped**, `allVisited()` true, goal reached in every case
   (0–2 aborted segments, no stalls, ~490–580 moves, ~90–107 m driven).
-- *Goal-first*: goal reached in **16/16** mazes, 19–118 cells explored, 0–2 aborted segments,
-  no stalls or oscillations.
+- *Goal-first*: goal reached in **16/16** mazes, 21–167 cells mapped, 0–3 aborted segments,
+  no stalls or oscillations; the sprint equals the true optimum in 16/16.
 
 ## Using it in a report
 
@@ -126,6 +143,6 @@ Screenshots that tell the story well:
    correction, wheel trim, PWM, RPM, encoder steps);
 5. the speed run — green shortest path (with goal-first, note how much of the maze is still
    unknown: that is the whole point of the strategy);
-6. the same maze run twice, once per strategy, with the two stats *explored before sprint* and
-   *sprint moves / optimal* side by side — a compact argument for the strategy choice;
+6. the same maze run twice, once per strategy, with the two stats *cells explored (centre → sprint)*
+   and *sprint moves / optimal* side by side — a compact argument for the strategy choice;
 7. the module map table at the bottom for the architecture section.

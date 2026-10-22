@@ -134,9 +134,10 @@ function paintTelemetry(now) {
 
   document.getElementById('strategyLabel').textContent =
     STRATEGY === 'GOAL_FIRST' ? 'goal-first' : 'full-map';
-  document.getElementById('stBefore').textContent = sup && sup.cellsAtGoal
-    ? `${sup.cellsAtGoal} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s`
-    : '–';
+  const mapped = sup ? FF.visitedCount() : 0;
+  document.getElementById('stBefore').textContent = sup && sup.reachedGoal
+    ? `${sup.cellsAtGoal} → ${mapped} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s to centre`
+    : (sup ? `${mapped} cells` : '–');
   const opt = optimalRouteLen();
   document.getElementById('stSprint').textContent =
     (sup && sup.sprintLen ? String(sup.sprintLen) : '–') + ` / opt ${opt < 0 ? '?' : opt}`;

@@ -15,21 +15,35 @@ const CELLS = MAZE_N * MAZE_N;
 const GOAL_CELLS = [idx(7, 7), idx(7, 8), idx(8, 7), idx(8, 8)];
 
 /* --------------------------- run strategy -----------------------------------
-   Two legal micromouse strategies. Both finish with a speed run from the start
+   Two legal micromouse strategies. Both end with a speed run from the start
    cell to the centre; they differ only in how much of the maze is mapped first.
 
    FULL_MAP    sweep every reachable cell, then return to start and sprint.
                Slowest, but the sprint is computed from a complete map, so the
                route is the true shortest path.
 
-   GOAL_FIRST  "reach goal, immediate optimisation": the mouse stops exploring
-               the moment it physically stands in a goal cell, then plans and
-               runs the sprint on the partial map it has. Much shorter run; the
-               route is optimal *for what is known*, so it can be a few cells
-               longer than the true shortest path.                            */
+   GOAL_FIRST  "reach goal, then optimise":
+                 1. drive at the centre (unknown cells optimistically open);
+                 2. on arrival keep exploring — the corridors it came in on are
+                    rarely the fastest ones — starting with the goal's own
+                    surroundings and stopping only when no unexplored cell
+                    could still shorten the route it already knows;
+                 3. return to the start cell by the shortest *known* route,
+                    which by then is usually a different one from the way in;
+                 4. sprint the best route in the map.
+               Much shorter than a full sweep; the route is optimal *for what
+               is known*, so it can be a few cells longer than the true
+               shortest path.                                                */
 let STRATEGY = 'GOAL_FIRST';
-const STRATEGY_NAME = { GOAL_FIRST: 'goal-first (immediate optimisation)', FULL_MAP: 'full-map exploration' };
+const STRATEGY_NAME = { GOAL_FIRST: 'goal-first (reach goal, then optimise)', FULL_MAP: 'full-map exploration' };
 function setStrategy(s) { STRATEGY = (s === 'FULL_MAP') ? 'FULL_MAP' : 'GOAL_FIRST'; }
+
+// Ceiling on the post-goal sweep: it may not explore more than this many extra
+// cells, so a maze where every cell still looks promising cannot turn the run
+// into a full sweep. Measured over 16 mazes the sweep stops on its own after
+// ~25 extra cells on average, so this ceiling only ever catches the hard mazes;
+// at 180 the sprint is the true optimum in 16/16 (at 60 it is 14/16).
+const POST_GOAL_MAX_CELLS = 180;
 
 const FF = {
   flood: [], startCell: 0, currentCell: 0, targetCell: 0,
@@ -147,6 +161,62 @@ const FF = {
     return -1;
   },
 
+  /* Length of the best route the map currently *proves*: only corridors the
+     mouse has actually observed (scanned or driven) are trusted, everything
+     still unknown counts as blocked. Returns -1 while start and goal are not
+     yet connected over observed corridors. */
+  knownRouteLen() {
+    const save = this.safeOnly;
+    this.safeOnly = true;
+    this.setFloodToTargets(GOAL_CELLS);
+    const L = this.flood[this.startCell].flood;
+    this.safeOnly = save;
+    return L === 255 ? -1 : L;
+  },
+
+  /* Post-goal explorer: which cell is still worth visiting?
+     A cell can only matter if the shortest route that *could* run
+     start -> cell -> goal — unknown cells assumed open, known walls respected —
+     is shorter than the best route the map already proves. Those cells are
+     scored by how far the car would have to drive to reach them, so the sweep
+     starts with the goal's own surroundings and works outward.
+     Returns -1 when no unexplored cell can improve the run any more. */
+  findImprovingUnvisited(bestKnown) {
+    const save = this.safeOnly;
+    this.safeOnly = false;                       // optimistic: unknown = open
+    this.setFloodToTargets([this.startCell]);
+    const dS = this.flood.map(f => f.flood);     // optimistic start -> cell
+    this.setFloodToTargets(GOAL_CELLS);
+    const dG = this.flood.map(f => f.flood);     // optimistic cell -> goal
+    this.safeOnly = save;
+
+    const dist = new Int16Array(CELLS).fill(-1);
+    const q = [this.currentCell];
+    dist[this.currentCell] = 0;
+    let best = -1, bestDrive = 1e9, bestPot = 1e9;
+    let h = 0;
+    while (h < q.length) {
+      const loc = q[h++];
+      const d = dist[loc];
+      if (best >= 0 && d > bestDrive) break;     // BFS order: nothing closer left
+      if (!this.flood[loc].visited && this.flood[loc].nb !== 0x0F &&
+          dS[loc] !== 255 && dG[loc] !== 255 && dS[loc] + dG[loc] < bestKnown) {
+        const pot = dS[loc] + dG[loc];
+        if (d < bestDrive || (d === bestDrive && pot < bestPot)) {
+          best = loc; bestDrive = d; bestPot = pot;
+        }
+      }
+      for (let dd = 0; dd < 4; dd++) {
+        if (!this.passable(loc, dd)) continue;
+        const n = loc + DIR_DR[dd] * MAZE_N + DIR_DC[dd];
+        if (dist[n] !== -1) continue;
+        dist[n] = d + 1;
+        q.push(n);
+      }
+    }
+    return best;
+  },
+
   // ---- ff_updateTargetCell(): step down the flood gradient ---------------
   updateTargetCell() {
     const scoreOf = [0, 1, 2, 1];                        // prefer going straight
@@ -235,10 +305,14 @@ class Supervisor {
     this.phaseStart = 0;
     this.cellsAtGoal = 0; this.timeAtGoalMs = 0;   // exploration cost before the sprint
     this.sprintLen = 0;                            // cells in the final speed run
+    this.reachedGoal = false;                      // first contact with the centre
+    this.postGoalCells = 0;                        // cells mapped after that contact
+    this.exploreTarget = -1;                       // post-goal cell being worked on
     this.ctx.log('MAIN', 'boot: I2C + VL6180 + MPU6050 + motors + encoders OK — flood-fill run armed');
     this.ctx.log('MAIN', `strategy: ${STRATEGY_NAME[STRATEGY]}` +
       (STRATEGY === 'GOAL_FIRST'
-        ? ' — explore only until the centre is reached, then optimise and sprint'
+        ? ' — reach the centre, keep exploring while a better route is possible, ' +
+          'return to start by the best known route, then sprint'
         : ' — map every reachable cell, return to start, then sprint'));
     this.ctx.log('FF', `geometry: wheel ${WHEEL_DIAMETER_MM} mm, cell ${CELL_MM} mm -> ${STEPS_PER_CELL} steps/cell`);
   }
@@ -293,9 +367,11 @@ class Supervisor {
       update() {
         ctxActive('FF', mode === 'explore'
           ? 'findNearestUnvisitedCell() + setFloodToTargets() + BFS'
-          : (mode === 'start'
-            ? 'setFloodToTargets(startCell) + BFS'
-            : 'setFloodToTargets(goal) + BFS'));
+          : (mode === 'post'
+            ? 'findImprovingUnvisited() + setFloodToTargets() + BFS'
+            : (mode === 'start'
+              ? 'setFloodToTargets(startCell) + BFS'
+              : 'setFloodToTargets(goal) + BFS')));
         return r.t - this.t0 >= 20;
       },
       done() {
@@ -307,6 +383,9 @@ class Supervisor {
             const nxt = FF.findNearestUnvisited();
             if (nxt < 0) return false;
             FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
+          } else if (mode === 'post') {
+            if (sup.exploreTarget < 0) return false;
+            FF.setFloodToTargets([sup.exploreTarget, sup.exploreTarget, sup.exploreTarget, sup.exploreTarget]);
           } else if (mode === 'goal' || mode === 'seek') {
             FF.setFloodToTargets(GOAL_CELLS);
           } else {
@@ -519,34 +598,63 @@ class Supervisor {
     return null;
   }
 
-  /* Has the exploration phase done its job? FULL_MAP wants every reachable cell;
-     GOAL_FIRST is satisfied the moment the car stands in a goal cell. */
+  /* Has the exploration phase done its job? FULL_MAP wants every reachable cell.
+     GOAL_FIRST is done once the car has stood in the centre *and* no unexplored
+     cell could still shorten the route it knows (or the post-goal budget ran
+     out). Until the centre has been touched it can never be complete, so a maze
+     where the goal turns out to be unreachable degrades to a full sweep. */
   exploreComplete() {
-    if (STRATEGY === 'GOAL_FIRST' && GOAL_CELLS.includes(FF.currentCell)) return true;
-    return FF.allVisited();
+    if (STRATEGY !== 'GOAL_FIRST') return FF.allVisited();
+    if (!this.reachedGoal) return false;
+    if (FF.allVisited()) return true;
+    if (this.postGoalCells >= POST_GOAL_MAX_CELLS) return true;
+    const best = FF.knownRouteLen();
+    if (best < 0) return false;                  // start and goal not yet connected
+    return FF.findImprovingUnvisited(best) < 0;  // nothing left that could help
   }
 
-  /* What the explorer floods toward. GOAL_FIRST aims straight at the centre: the
-     flood treats unknown cells as open, so the car commits to the shortest
-     *optimistic* route and simply re-plans when a wall turns up. If the centre is
-     unreachable even optimistically, or the optimistic route keeps running into
-     walls, it falls back to ordinary nearest-unvisited sweeping. */
+  /* What the explorer floods toward.
+       seek  — before the centre is found: straight at it, unknown cells treated
+               as open, re-planning whenever a wall turns up.
+       post  — after the centre is found: the nearest unexplored cell that could
+               still produce a faster route (see findImprovingUnvisited()).
+       explore — plain nearest-unvisited sweeping, used by FULL_MAP and as the
+               fallback when the optimistic route keeps hitting walls. */
   exploreMode() {
     if (STRATEGY !== 'GOAL_FIRST') return 'explore';
-    FF.setFloodToTargets(GOAL_CELLS);
-    if (FF.flood[FF.currentCell].flood === 255) return 'explore';
+    if (!this.reachedGoal) {
+      FF.setFloodToTargets(GOAL_CELLS);
+      if (FF.flood[FF.currentCell].flood === 255) return 'explore';
+      if (this.consecFail >= 2) return 'explore';
+      return 'seek';                      // optimistic run at the centre
+    }
     if (this.consecFail >= 2) return 'explore';
-    return 'seek';                      // optimistic run at the centre
+    const best = FF.knownRouteLen();
+    this.exploreTarget = best < 0 ? FF.findNearestUnvisited() : FF.findImprovingUnvisited(best);
+    return 'post';
+  }
+
+  /* First contact with the centre. For goal-first this is *not* the end of the
+     exploration: the corridors the car drove in on are usually not the fastest
+     ones, so it keeps sweeping the cells that could still shorten the route. */
+  markGoalContact() {
+    this.reachedGoal = true;
+    this.cellsAtGoal = FF.visitedCount();
+    this.timeAtGoalMs = this.r.t;
+    const best = FF.knownRouteLen();
+    this.ctx.log('MAIN', `CENTRE REACHED in cell ${FF.currentCell} — ${this.cellsAtGoal}/${CELLS} cells ` +
+      `(${(this.cellsAtGoal / CELLS * 100).toFixed(0)}% of the maze) at ${(this.r.t / 1000).toFixed(1)} s, ` +
+      `best known route ${best} cells` +
+      (STRATEGY === 'GOAL_FIRST' ? ' — still exploring for a faster one' : ''));
   }
 
   finishExplore() {
     const cells = FF.visitedCount();
-    this.cellsAtGoal = cells;
-    this.timeAtGoalMs = this.r.t;
-    if (STRATEGY === 'GOAL_FIRST' && GOAL_CELLS.includes(FF.currentCell)) {
-      this.ctx.log('MAIN', `CENTRE REACHED after ${cells}/${CELLS} cells ` +
-        `(${(cells / CELLS * 100).toFixed(0)}% of the maze) at ${(this.r.t / 1000).toFixed(1)} s — ` +
-        `exploration stopped, optimising the partial map now`);
+    if (STRATEGY === 'GOAL_FIRST' && this.reachedGoal) {
+      const best = FF.knownRouteLen();
+      this.ctx.log('MAIN', `map optimised: no unexplored cell can beat the ${best}-cell route ` +
+        `— ${cells}/${CELLS} cells mapped (${this.cellsAtGoal} of them before the centre was reached, ` +
+        `${this.postGoalCells} while exploring around it)`);
     } else {
       this.ctx.log('FF', `explore complete: ${cells} cells mapped — FF_saveMap() to EEPROM`);
     }
@@ -554,7 +662,8 @@ class Supervisor {
     this.sub = undefined;
     this.target = -1;
     FF.setFloodToTargets([FF.startCell, FF.startCell, FF.startCell, FF.startCell]);
-    this.ctx.log('MAIN', 'phase 2/3: FF_returnToStart() — driving back to the start cell');
+    this.ctx.log('MAIN', 'phase 2/3: FF_returnToStart() — driving back to the start cell ' +
+      'by the shortest route the map knows (not necessarily the way in)');
     this.phaseStart = this.r.t;
     return null;
   }
@@ -572,7 +681,8 @@ class Supervisor {
     this.sprintLen = this.speedPath.length;
     this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished ` +
       `(sprint ${this.sprintLen} cells, ${(this.r.t / 1000).toFixed(1)} s total, ` +
-      `${STRATEGY === 'GOAL_FIRST' ? this.cellsAtGoal : FF.visitedCount()} cells explored)`);
+      `${FF.visitedCount()} cells explored` +
+      (STRATEGY === 'GOAL_FIRST' ? ` — ${this.cellsAtGoal} before the centre, ${this.postGoalCells} after` : ''));
     this.phase = 'DONE';
     MotorControl.brake(this.r);
     return null;
@@ -622,7 +732,11 @@ class Supervisor {
       if (a.ok) {
         FF.markSeen(a.fromCell, FF.currentDir);   // driven through: certainly open
         FF.currentCell = this.target;
-        FF.flood[FF.currentCell].visited = 1;
+        if (!FF.flood[FF.currentCell].visited) {
+          FF.flood[FF.currentCell].visited = 1;
+          if (this.reachedGoal) this.postGoalCells++;
+        }
+        if (!this.reachedGoal && GOAL_CELLS.includes(FF.currentCell)) this.markGoalContact();
         this.moves++;
         this.consecFail = 0;
         if (this.phase === 'SPEED') this.speedPath.push(FF.currentCell);
