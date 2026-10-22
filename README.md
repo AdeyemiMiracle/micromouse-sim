@@ -1,5 +1,7 @@
 # Grizzly — Micromouse Module Interaction Simulator
 
+**Live demo:** https://adeyemimiracle.github.io/micromouse-sim/ (GitHub Pages — no login, no expiry)
+
 A self-contained browser simulation of the **Grizzly** micromouse firmware solving an unknown
 **16 × 16 maze**. It exists to show, step by step, how each source module hands data to the next
 one to turn three ToF readings and two wheel encoders into a shortest-path run to the centre.
