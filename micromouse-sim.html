@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title> Micromouse Module Interaction Simulator by (Olaito Adeyemi Damilola) </title>
+<style>
+:root {
+  --bg: #0b1220;
+  --bg2: #111c30;
+  --panel: #131f36;
+  --panel2: #17243d;
+  --line: #26374f;
+  --txt: #dbe6f5;
+  --dim: #8fa3c0;
+  --accent: #38bdf8;
+  --accent2: #22d3ee;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --bad: #f43f5e;
+  --mouse: #f59e0b;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 700px at 20% -10%, #16263f 0%, var(--bg) 60%);
+  color: var(--txt);
+  font: 14px/1.5 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 18px 20px 40px;
+}
+
+.mono { font-family: var(--mono); }
+code { font-family: var(--mono); background: #0e1830; padding: 1px 5px; border-radius: 4px; color: #a5d8ff; }
+
+/* ---------------- top bar ---------------- */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.brand { display: flex; gap: 14px; align-items: flex-start; }
+.brand .dot {
+  width: 12px; height: 12px; border-radius: 50%; margin-top: 8px;
+  background: var(--accent); box-shadow: 0 0 0 6px rgba(56,189,248,.15);
+  animation: pulse 2.4s infinite;
+}
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(56,189,248,.18);} 50% { box-shadow: 0 0 0 10px rgba(56,189,248,.05);} }
+.topbar h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
+.topbar .sub { margin: 4px 0 0; color: var(--dim); font-size: 12.5px; max-width: 900px; }
+
+.phasebox {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 14px; min-width: 240px;
+}
+.phase-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+.phase-row.small { font-size: 12px; color: var(--dim); margin-top: 4px; }
+.phase-label { font-size: 10.5px; letter-spacing: 1.4px; color: var(--dim); }
+.phase-badge {
+  font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: #1e3a5f; color: #bfe6ff; border: 1px solid #2f5f8f;
+}
+.phase-badge.EXPLORE { background: #12314f; color: #7dd3fc; border-color: #2b6ca3; }
+.phase-badge.RETURN  { background: #3a2a12; color: #fcd34d; border-color: #8a6318; }
+.phase-badge.SPEED   { background: #123a25; color: #86efac; border-color: #1f7a4c; }
+.phase-badge.DONE    { background: #2a1540; color: #d8b4fe; border-color: #6d28d9; }
+
+/* ---------------- layout ---------------- */
+.layout { display: grid; grid-template-columns: minmax(560px, 1fr) minmax(400px, 460px); gap: 16px; align-items: start; }
+@media (max-width: 1180px) { .layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--bg2) 100%);
+  border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 16px;
+}
+.panel.wide { margin-top: 16px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.panel-head h2 { margin: 0; font-size: 13px; letter-spacing: .6px; text-transform: uppercase; color: #a8c4e6; }
+.hint { font-size: 11px; color: var(--dim); }
+.side { display: flex; flex-direction: column; gap: 16px; }
+
+/* ---------------- maze ---------------- */
+.canvas-wrap { position: relative; display: flex; justify-content: center; }
+canvas#mazeCanvas {
+  width: 100%; max-width: 720px; height: auto; aspect-ratio: 1/1;
+  background: #0a111f; border: 1px solid var(--line); border-radius: 10px;
+}
+.hud {
+  position: absolute; top: 10px; left: 10px; background: rgba(10,17,31,.82);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 11.5px;
+}
+.hud-row { display: flex; justify-content: space-between; gap: 12px; }
+.hud-row span { color: var(--dim); }
+
+.legend-inline { font-size: 11px; color: var(--dim); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; }
+.k-known { background: #7dd3fc; }
+.k-unknown { background: #2b3d59; }
+.k-visited { background: rgba(56,189,248,.22); border: 1px solid rgba(56,189,248,.5); }
+.k-goal { background: rgba(34,197,94,.35); border: 1px solid #22c55e; }
+
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.btn {
+  background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+  padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
+}
+.btn:hover { border-color: #3d5d85; background: #1b2c47; }
+.btn.primary { background: #0e4a6e; border-color: #1d7ba8; color: #d6f3ff; font-weight: 600; }
+.btn.primary:hover { background: #11608f; }
+.mini { background: none; border: 1px solid var(--line); color: var(--dim); border-radius: 6px; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.slider { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+.slider input { width: 120px; }
+
+.toggles { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--dim); }
+.toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.stat { background: #0e1830; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.stat span { display: block; font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+.stat b { font-family: var(--mono); font-size: 14px; color: #cfe6ff; }
+
+/* ---------------- pipeline ---------------- */
+.pipeline { display: flex; flex-direction: column; gap: 4px; }
+.pcard {
+  display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;
+  background: #0e1830; border: 1px solid var(--line); border-left: 3px solid #24405f;
+  border-radius: 8px; padding: 6px 10px; transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.pcard .pname { font-family: var(--mono); font-size: 11.5px; color: #9fb8d6; }
+.pcard .pmsg { font-family: var(--mono); font-size: 11px; color: var(--dim); min-height: 15px; }
+.pcard.active {
+  background: #12314f; border-color: #2f7fb5; border-left-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(56,189,248,.25), 0 0 18px rgba(56,189,248,.12);
+}
+.pcard.active .pname { color: #e6f6ff; }
+.pcard.active .pmsg { color: #bfe6ff; }
+.pcard.turn.active { border-left-color: var(--warn); box-shadow: 0 0 18px rgba(245,158,11,.14); }
+.pcard.drive.active { border-left-color: var(--ok); box-shadow: 0 0 18px rgba(34,197,94,.14); }
+.parrow { text-align: center; color: #35506f; font-size: 11px; line-height: 8px; }
+.parrow.hot { color: var(--accent); }
+
+/* ---------------- telemetry ---------------- */
+.telemetry { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-family: var(--mono); font-size: 11.5px; }
+.tel-row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted #1f3050; padding: 2px 0; }
+.tel-row span { color: var(--dim); }
+.tel-row b { color: #cfe6ff; font-weight: 500; }
+.tel-row b.hi { color: var(--accent2); }
+.tel-row b.warn { color: var(--warn); }
+
+/* ---------------- boot error banner ---------------- */
+.boot-error {
+  margin: 10px 14px 0; padding: 10px 14px; border-radius: 8px;
+  background: #3b0d16; border: 1px solid var(--bad); color: #fecdd3;
+  font-family: var(--mono); font-size: 12px; white-space: pre-wrap;
+}
+
+/* ---------------- log ---------------- */
+.log {
+  height: 190px; overflow-y: auto; background: #0a111f; border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px; font-family: var(--mono); font-size: 11px; line-height: 1.65;
+}
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log .t { color: #4f6d92; }
+.log .m { color: #7dd3fc; }
+.log .m.MOTION { color: var(--warn); }
+.log .m.DRIVE { color: var(--ok); }
+.log .m.FF { color: #d8b4fe; }
+.log .m.MPU, .log .m.ENC { color: #93c5fd; }
+.log .m.WARN { color: var(--bad); }
+
+/* ---------------- module table ---------------- */
+.modtable { display: flex; flex-direction: column; gap: 2px; }
+.modrow {
+  display: grid; grid-template-columns: 170px 1fr 260px; gap: 14px;
+  padding: 8px 10px; border-radius: 8px; font-size: 12.3px; align-items: start;
+}
+.modrow:nth-child(odd) { background: #0e1830; }
+.modrow.head { background: none; color: var(--dim); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; }
+.modrow span:first-child { color: #a5d8ff; font-family: var(--mono); }
+.modrow span:nth-child(2) { color: #c6d6ea; }
+.modrow span:nth-child(3) { color: var(--dim); font-size: 11.5px; }
+.note { color: var(--dim); font-size: 12px; margin: 12px 2px 0; }
+@media (max-width: 900px) { .modrow { grid-template-columns: 1fr; } }
+
+</style>
+</head>
+<body>
+
+<div id="bootError" class="boot-error" hidden></div>
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <div>
+      <h1> Micromouse Module Interaction Simulator</h1>
+      <p class="sub">16 &times; 16 unknown maze &middot; firmware-accurate pipeline: VL6180 &rarr; floodfill &rarr; motion / distance &rarr; MotorControl &rarr; wheels &rarr; Encoder + MPU6050 feedback</p>
+    </div>
+  </div>
+  <div class="phasebox">
+    <div class="phase-row">
+      <span class="phase-label">RUN PHASE</span>
+      <span id="phaseBadge" class="phase-badge">IDLE</span>
+    </div>
+    <div class="phase-row small">
+      <span>Sim time</span><span id="simClock" class="mono">0.00 s</span>
+    </div>
+    <div class="phase-row small">
+      <span>Action</span><span id="actionName" class="mono">–</span>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ======================= LEFT: MAZE + CONTROLS ======================= -->
+  <section class="panel maze-panel">
+    <div class="panel-head">
+      <h2>Maze view — 16 &times; 16</h2>
+      <div class="legend-inline">
+        <span class="key k-known"></span>known wall
+        <span class="key k-unknown"></span>unknown (true) wall
+        <span class="key k-visited"></span>visited
+        <span class="key k-goal"></span>goal
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="mazeCanvas" width="720" height="720" aria-label="Micromouse maze simulation"></canvas>
+      <div id="hud" class="hud">
+        <div class="hud-row"><span>cell</span><b id="hudCell" class="mono">(0,0)</b></div>
+        <div class="hud-row"><span>heading</span><b id="hudDir" class="mono">N</b></div>
+        <div class="hud-row"><span>flood</span><b id="hudFlood" class="mono">–</b></div>
+        <div class="hud-row"><span>target</span><b id="hudTarget" class="mono">–</b></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnPlay" class="btn primary">▶ Run</button>
+      <button id="btnStep" class="btn">⏭ Step action</button>
+      <button id="btnReset" class="btn">⟲ Restart run</button>
+      <button id="btnNewMaze" class="btn">✦ New maze</button>
+      <label class="slider">
+        Speed <span id="speedLabel" class="mono">8×</span>
+        <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
+      </label>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="showFlood" checked /> Flood values</label>
+      <label><input type="checkbox" id="showTruth" checked /> True (unknown) maze</label>
+      <label><input type="checkbox" id="showSensors" checked /> Sensor beams</label>
+      <label><input type="checkbox" id="showTrail" checked /> Trail</label>
+      <label title="Uncheck to reproduce the physical Grizzly, whose MPU is mounted so the gz yaw channel freezes: the motion module then leaves gyroAlive = false and runStraight() drives on the encoder equaliser + side-wall trim only.">
+        <input type="checkbox" id="gyroAlive" checked /> MPU yaw loop (gyroAlive)</label>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>cells explored</span><b id="stCells">0 / 256</b></div>
+      <div class="stat"><span>walls learned</span><b id="stWalls">0%</b></div>
+      <div class="stat"><span>moves made</span><b id="stMoves">0</b></div>
+      <div class="stat"><span>distance driven</span><b id="stDist">0.00 m</b></div>
+      <div class="stat"><span>turns</span><b id="stTurns">0</b></div>
+      <div class="stat"><span>aborts / bumps</span><b id="stAborts">0</b></div>
+    </div>
+  </section>
+
+  <!-- ======================= RIGHT: PIPELINE + TELEMETRY ================= -->
+  <section class="side">
+
+    <div class="panel">
+      <div class="panel-head"><h2>Live module pipeline</h2><span class="hint">highlighted = executing now</span></div>
+      <div id="pipeline" class="pipeline"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Telemetry (mirrors the serial monitor status line)</h2></div>
+      <div id="tel" class="telemetry"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Event log</h2><button id="btnClearLog" class="mini">clear</button></div>
+      <div id="log" class="log"></div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ======================= MODULE REFERENCE ============================= -->
+<section class="panel wide">
+  <div class="panel-head"><h2>Source-module map — what each file contributes to the run</h2></div>
+  <div class="modtable">
+    <div class="modrow head">
+      <span>File</span><span>Role in the run</span><span>Talks to</span>
+    </div>
+    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
+    <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
+    <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
+    <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
+    <div class="modrow"><span class="mono">floodfill module</span><span>Maze memory + BFS flood fill. Reads walls, picks the next cell, decides turn direction, saves map to EEPROM.</span><span class="mono">VL6180, motion, distance</span></div>
+    <div class="modrow"><span class="mono">motion module</span><span>Gyro-closed pivots <code>turnLeft90 / turnRight90 / turn180PivotLeft</code> with calibrated dead-gyro time fallback.</span><span class="mono">mpu6050, MotorControl</span></div>
+    <div class="modrow"><span class="mono">distance module</span><span><code>runStraight()</code>: soft-start ramp + P/I yaw loop + encoder wheel matching + side-wall centring trim → wheel PWM.</span><span class="mono">mpu6050, Encoder, MotorControl, VL6180</span></div>
+    <div class="modrow"><span class="mono">MotorControl module</span><span>TB6612FNG H-bridge driver: signed PWM → direction pins + PWM, plus active brake.</span><span class="mono">motion, distance → wheels</span></div>
+  </div>
+  <p class="note">
+    <b>Adaptations for 16&times;16 (all shown in the source comments).</b>
+    Cell pitch 168&nbsp;mm &rarr; 180&nbsp;mm and goal = the four centre cells (7,7)(7,8)(8,7)(8,8);
+    lone-wall standoff 50&nbsp;mm &rarr; 84&nbsp;mm (half corridor);
+    side-wall threshold 90&nbsp;mm &rarr; 120&nbsp;mm (a centred car reads 84&nbsp;mm, so 90&nbsp;mm cannot absorb a
+    post-turn offset, and an open side always reads "no echo" at 264&nbsp;mm);
+    turn stop tolerance 5&deg; &rarr; 2&deg;;
+    wall-trim clamp 40&nbsp;PWM &rarr; 8&nbsp;PWM (40&nbsp;PWM slews this chassis ~100&deg;/s and over-rotates a cell);
+    front-abort disarm 60&nbsp;mm &rarr; 100&nbsp;mm;
+    90&deg; turns drive both wheels (centre pivot) instead of the firmware's single-wheel pivot, which swings the
+    chassis ~45&nbsp;mm off the corridor every turn;
+    phase watchdog 90&nbsp;s &rarr; 600&nbsp;s (a 256-cell sweep takes ~9&nbsp;min of simulated time);
+    <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
+    each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
+  </p>
+</section>
+
+<script>
+/* ============================================================================
+   maze.js — 16x16 maze model, wall geometry and VL6180 ray-cast sensor physics
+   ----------------------------------------------------------------------------
+   Grid convention (identical to the floodfill module):
+     index = row * 16 + col,  row 0 / col 0 = bottom-left corner (the start cell)
+     direction bits: 0 = N (row+1), 1 = E (col+1), 2 = S (row-1), 3 = W (col-1)
+   ========================================================================== */
+
+const MAZE_N = 16;            // 16 x 16 cells
+const CELL_MM = 180.0;        // cell pitch (firmware uses 168 mm for its 8x8 maze)
+const WALL_T_MM = 12.0;       // wall thickness
+const HALF_T = WALL_T_MM / 2;
+
+const DIR_N = 0, DIR_E = 1, DIR_S = 2, DIR_W = 3;
+const DIR_NAME = ['N', 'E', 'S', 'W'];
+const DIR_DR = [1, 0, -1, 0];   // N increases the row index
+const DIR_DC = [0, 1, 0, -1];
+const DIR_ANGLE = [90, 0, 270, 180];   // degrees CCW from +x (East). N = +y = 90 deg
+
+const idx = (r, c) => r * MAZE_N + c;
+const rowOf = (i) => Math.floor(i / MAZE_N);
+const colOf = (i) => i % MAZE_N;
+
+/* --------------------------- maze generation ------------------------------ */
+
+function makeMaze(seed) {
+  let s = (seed === undefined) ? (Math.random() * 1e9) | 0 : seed;
+  const rnd = () => { // xorshift — reproducible mazes
+    s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s |= 0;
+    return ((s >>> 0) % 100000) / 100000;
+  };
+
+  const walls = new Uint8Array(MAZE_N * MAZE_N);   // bitmask per cell
+  const visited = new Uint8Array(MAZE_N * MAZE_N);
+  const clearWall = (r, c, d) => {
+    const nr = r + DIR_DR[d], nc = c + DIR_DC[d];
+    walls[idx(r, c)] &= ~(1 << d);
+    if (nr >= 0 && nr < MAZE_N && nc >= 0 && nc < MAZE_N) walls[idx(nr, nc)] &= ~(1 << ((d + 2) % 4));
+  };
+
+  // start with every wall up, carve with randomised DFS
+  walls.fill(0x0F);
+  const stack = [[0, 0]];
+  visited[idx(0, 0)] = 1;
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1];
+    const cand = [];
+    for (let d = 0; d < 4; d++) {
+      const nr = r + DIR_DR[d], nc = c + DIR_DC[d];
+      if (nr >= 0 && nr < MAZE_N && nc >= 0 && nc < MAZE_N && !visited[idx(nr, nc)]) cand.push(d);
+    }
+    if (!cand.length) { stack.pop(); continue; }
+    const d = cand[(rnd() * cand.length) | 0];
+    const nr = r + DIR_DR[d], nc = c + DIR_DC[d];
+    clearWall(r, c, d);
+    visited[idx(nr, nc)] = 1;
+    stack.push([nr, nc]);
+  }
+
+  // --- goal block: the four centre cells, opened internally ---------------
+  const G = [[7, 7], [7, 8], [8, 7], [8, 8]];
+  clearWall(7, 7, DIR_E);          // (7,7)-(7,8)
+  clearWall(8, 7, DIR_E);          // (8,7)-(8,8)
+  clearWall(7, 7, DIR_N);          // (7,7)-(8,7)
+  clearWall(7, 8, DIR_N);          // (7,8)-(8,8)
+  // guarantee at least two entrances into the goal block
+  const entrances = [
+    [7, 7, DIR_S], [8, 7, DIR_S], [7, 7, DIR_W], [8, 7, DIR_W],
+    [7, 8, DIR_E], [8, 8, DIR_E], [8, 7, DIR_N], [8, 8, DIR_N]
+  ];
+  for (let k = 0; k < 2; k++) {
+    const pick = entrances.splice((rnd() * entrances.length) | 0, 1)[0];
+    if (pick) clearWall(pick[0], pick[1], pick[2]);
+  }
+
+  // a few extra loops make the maze less "perfect" and the flood fill more interesting
+  const extra = 14;
+  for (let k = 0; k < extra; k++) {
+    const r = (rnd() * MAZE_N) | 0, c = (rnd() * MAZE_N) | 0, d = (rnd() * 4) | 0;
+    const nr = r + DIR_DR[d], nc = c + DIR_DC[d];
+    if (nr < 0 || nr >= MAZE_N || nc < 0 || nc >= MAZE_N) continue;
+    clearWall(r, c, d);
+  }
+
+  return { walls, seedN: s, goal: G.map(([r, c]) => idx(r, c)) };
+}
+
+/* --------------------------- wall rectangles ------------------------------ */
+/* Each wall is an axis-aligned rectangle used both for drawing and for the
+   sensor ray cast (slab intersection). Units: mm, world origin = maze corner. */
+
+function wallRects(walls, filterKnown) {
+  const rects = [];
+  const N = MAZE_N;
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const m = walls[idx(r, c)];
+      const x0 = c * CELL_MM, x1 = x0 + CELL_MM;
+      const y0 = r * CELL_MM, y1 = y0 + CELL_MM;
+      // N wall (top edge of the cell)
+      if (m & (1 << DIR_N)) rects.push([x0 - HALF_T, y1 - HALF_T, x1 + HALF_T, y1 + HALF_T, idx(r, c), DIR_N]);
+      // E wall
+      if (m & (1 << DIR_E)) rects.push([x1 - HALF_T, y0 - HALF_T, x1 + HALF_T, y1 + HALF_T, idx(r, c), DIR_E]);
+      // perimeter S / W only on the boundary rows/cols (avoids duplicates)
+      if (r === 0 && (m & (1 << DIR_S))) rects.push([x0 - HALF_T, y0 - HALF_T, x1 + HALF_T, y0 + HALF_T, idx(r, c), DIR_S]);
+      if (c === 0 && (m & (1 << DIR_W))) rects.push([x0 - HALF_T, y0 - HALF_T, x0 + HALF_T, y1 + HALF_T, idx(r, c), DIR_W]);
+    }
+  }
+  if (filterKnown) return rects.filter(([, , , , ci, d]) => filterKnown[ci] & (1 << d));
+  return rects;
+}
+
+/* ------------------------------ ray cast ---------------------------------- */
+/* Nearest hit distance (mm) along a unit ray, or Infinity when nothing is hit.
+   Slab method against an axis-aligned rectangle. */
+function rayRect(px, py, dx, dy, rect) {
+  let tmin = 0, tmax = Infinity;
+  // x slab
+  if (Math.abs(dx) < 1e-9) {
+    if (px < rect[0] || px > rect[2]) return Infinity;
+  } else {
+    let t1 = (rect[0] - px) / dx, t2 = (rect[2] - px) / dx;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+    if (tmin > tmax) return Infinity;
+  }
+  // y slab
+  if (Math.abs(dy) < 1e-9) {
+    if (py < rect[1] || py > rect[3]) return Infinity;
+  } else {
+    let t1 = (rect[1] - py) / dy, t2 = (rect[3] - py) / dy;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+    if (tmin > tmax) return Infinity;
+  }
+  return tmin;
+}
+
+const VL6180_MAX_MM = 200;   // sensor specification used by readsingleSensor()
+
+/* Cast one sensor beam and return the VL6180-style reading:
+   millimetres to the wall surface, or 999 when there is no echo inside 200 mm. */
+function castSensor(px, py, angleDeg, rects, noise) {
+  const a = angleDeg * Math.PI / 180;
+  const dx = Math.cos(a), dy = Math.sin(a);
+  let best = Infinity;
+  for (let i = 0; i < rects.length; i++) {
+    const t = rayRect(px, py, dx, dy, rects[i]);
+    if (t < best) best = t;
+  }
+  if (!isFinite(best) || best > VL6180_MAX_MM) return 999;
+  let d = best + (noise ? (Math.random() * 2 - 1) * noise : 0);
+  if (d < 0) d = 0;
+  return Math.round(d);
+}
+
+/* --------------------------- body / collision ----------------------------- */
+/* Wall contact for the circular chassis (radius rb): push the body out of any
+   wall rectangle it overlaps and project the attempted displacement (nx-px,
+   ny-py) onto the wall, so a car that touches a wall scrapes ALONG it instead of
+   sticking to it. Returns the corrected position and whether contact happened. */
+function resolveCollision(px, py, nx, ny, rb, rects) {
+  let bumped = false;
+  let vx = nx - px, vy = ny - py;
+  for (let k = 0; k < 2; k++) {          // two relaxation passes
+    for (let i = 0; i < rects.length; i++) {
+      const [x0, y0, x1, y1] = rects[i];
+      if (x0 > px + rb || x1 < px - rb || y0 > py + rb || y1 < py - rb) continue;  // far away
+      const cx = Math.max(x0, Math.min(px, x1));
+      const cy = Math.max(y0, Math.min(py, y1));
+      let dx = px - cx, dy = py - cy;
+      let d2 = dx * dx + dy * dy;
+      if (d2 >= rb * rb) continue;
+      bumped = true;
+      let d = Math.sqrt(d2);
+      if (d < 1e-6) {                     // centre inside the rectangle: push out on the shallow axis
+        const cxr = (x0 + x1) / 2, cyr = (y0 + y1) / 2;
+        const ox = (x1 - x0) / 2 + rb - Math.abs(px - cxr);
+        const oy = (y1 - y0) / 2 + rb - Math.abs(py - cyr);
+        if (ox < oy) { px = (px < cxr) ? x0 - rb : x1 + rb; dx = (px < cxr) ? -1 : 1; dy = 0; }
+        else { py = (py < cyr) ? y0 - rb : y1 + rb; dx = 0; dy = (py < cyr) ? -1 : 1; }
+        d = 1;
+      }
+      const nxu = dx / d, nyu = dy / d;
+      px += nxu * (rb - d);
+      py += nyu * (rb - d);
+      const into = vx * nxu + vy * nyu;   // negative = moving into the wall
+      if (into < 0) { vx -= nxu * into; vy -= nyu * into; }   // slide along it
+    }
+  }
+  return { x: px + vx, y: py + vy, bumped };
+}
+
+
+/* ------------------------------------------------------------------ */
+
+/* ============================================================================
+   modules.js — JavaScript twins of the Grizzly firmware modules
+   ----------------------------------------------------------------------------
+   VL6180 module   : time-of-flight ranging (readsingleSensor / readallSensor)
+   mpu6050 module  : readangle() + mounting-independent gravity-axis heading
+   Encoder module  : quadrature odometry, wheel RPM
+   MotorControl    : TB6612FNG H-bridge, signed PWM -> wheels
+   distance module : runStraight()  (soft start + P/I yaw + encoder match + trim)
+   motion module   : turnLeft90 / turnRight90 / turn180PivotLeft
+   All constants below are the values compiled into the firmware.
+   ========================================================================== */
+
+const WHEEL_DIAMETER_MM = 23.0;                        // floodfill module
+const WHEEL_CIRC_MM = Math.PI * WHEEL_DIAMETER_MM;
+const PULSES_PER_WHEEL_REV = 1320;                     // Encoder module ENCODER_PPR
+const STEPS_PER_CELL = Math.round(CELL_MM / WHEEL_CIRC_MM * PULSES_PER_WHEEL_REV);
+const STEPS_PER_MM = STEPS_PER_CELL / CELL_MM;
+const WHEELBASE_MM = 90.0;                             // chassis track width (sim only)
+const BODY_R_MM = 42.0;                                // chassis radius (sim only)
+const PWM_STALL = 35;                                  // PWM below which the motors do not turn
+const MM_PER_S_PER_PWM = 2.0;                          // sim plant: 150 PWM -> 300 mm/s
+const LEFT_MOTOR_TRIM = 0.955;                         // motor asymmetry the P/I loop must cancel
+
+// distance module straight-line controller constants
+const TARGET_SPEED = 150;
+const YAW_TOLERANCE = 0.5;
+const YAW_CORRECTION_GAIN = 2.5;
+const ENCODER_CORRECTION_GAIN = 1.0;
+const MAX_ENCODER_CORRECTION = 30.0;
+const TURN_RECAPTURE_ANGLE = 45.0;
+const MAX_YAW_CORRECTION = 50.0;
+const YAW_INTEGRAL_GAIN = 0.08;
+const MAX_YAW_INTEGRAL = 500.0;
+const MIN_POWER = 60, MAX_POWER = 200;
+const RAMP = 5.0;                                      // PWM units per loop call (soft start)
+
+// motion module turn constants
+const TURN_90_LEFT_MS = 1070, TURN_90_RIGHT_MS = 1285, TURN_180_MS = 1000;
+const TURN_TIMEOUT_MS = 3000;
+const TURN_HEADING_ALIVE_DEG = 2.0;
+const TURN_SLOW_START_DEG = 45.0;
+const TURN_MIN_PIVOT_PWM = 65.0;
+// The firmware stops a pivot within 5 deg of the target heading; on a 180 mm
+// cell that alone leaves ~15 mm of lateral error per cell, which a 16x16 run
+// cannot absorb. Tightened to 2 deg so the yaw loop lands on the heading.
+const TURN_STOP_TOL_DEG = 2.0;
+const TURN_SPEED = 150;
+
+// Wall thresholds (VL6180 module). The front value is the firmware's. The side
+// value is raised from 90 mm to 120 mm for the 16x16 geometry: a centred car
+// reads 84 mm to a side wall, so 90 mm only tolerates a 6 mm offset, while a
+// single-wheel pivot leaves the chassis up to ~45 mm off the corridor centre.
+// An open side is never ambiguous — the beam then runs on to the wall two cells
+// away (264 mm) and returns "no echo" (999) — so 120 mm cannot false-trigger.
+const WALL_FRONT_MM = 130;
+const WALL_SIDE_MM = 120;
+
+// Front-abort arming (floodfill module). FRONT_ABORT_ARM_STEPS is the firmware's
+// quarter-cell delay. POLL_STOP_REMAIN is widened from the firmware's 60 mm to
+// 100 mm: the firmware's margin assumes the car starts every segment exactly on
+// the cell centre, while dead-reckoned travel leaves it up to ~25 mm off. With
+// 100 mm the poll always ends while the far wall of the destination cell is
+// still >160 mm away, so only a genuine unexpected wall (which appears at the
+// current cell's boundary, ~90 mm ahead at the start) can trip the abort.
+const FRONT_POLL_STOP_MM = 100;
+
+// floodfill module wall-centring trim. The lone-wall standoff is rescaled to the
+// 180 mm cell (half corridor) and the clamp is reduced from the firmware's
+// 40 PWM: at this plant's 300 mm/s a 40 PWM split slews the chassis ~100 deg/s,
+// which over-rotates a one-cell segment. 14 PWM still arrests a 30 mm offset
+// inside a single cell without leaving the car crabbing into the next one.
+const CENTER_TRIM_GAIN = 0.25;
+const CENTER_MAX_TRIM = 8.0;
+const CENTER_DEADBAND_MM = 3.0;
+const CENTER_ONE_WALL_GAP_MM = 84.0;                   // half corridor of a 180/12 mm cell
+const CENTER_MAX_VALID_MM = 190.0;
+
+// Set false to reproduce the physical Grizzly, whose MPU is mounted so the gz
+// yaw channel never moves: the motion module then leaves gyroAlive = false and
+// runStraight() drives on the encoder equaliser + side-wall trim alone.
+let GYRO_ALIVE = true;
+
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+
+function angleDiff(target, current) {                  // motion module
+  let d = target - current;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
+function norm360(a) { a %= 360; return a < 0 ? a + 360 : a; }
+
+/* ========================= VL6180 module ================================== */
+const VL6180 = {
+  cast(robot, angleDeg) {                              // readsingleSensor()
+    if (!robot.rects) return 999;
+    return castSensor(robot.x, robot.y, angleDeg, robot.rects, 1.2);
+  },
+  readall(robot) {                                     // readallSensor(&l,&m,&r)
+    const h = robot.th;
+    return {
+      l: VL6180.cast(robot, h + 90),                   // lox1  (left)
+      m: VL6180.cast(robot, h),                        // lox2  (front)
+      r: VL6180.cast(robot, h - 90)                    // lox3  (right)
+    };
+  },
+  isFrontWall(v) { return v < WALL_FRONT_MM; },        // isFrontWall()
+  isSideWall(v) { return v < WALL_SIDE_MM; }           // isLeftWall() / isRightWall()
+};
+
+/* ========================= mpu6050 module ================================= */
+const MPU6050 = {
+  readangle(robot) {
+    // headingTrueDeg: gyro projected on the gravity axis, unwrapped. The gz-only
+    // "yaw" channel of this car stays frozen during rotation (see motion module
+    // comments), which is why gyroAlive defaults to false.
+    return {
+      roll: 0.0,
+      pitch: 0.0,
+      yaw: robot.yawFrozen,
+      headingTrueDeg: robot.gyroHeading + (Math.random() - 0.5) * 0.06
+    };
+  },
+  snapshotAxis(robot) { robot.gyroHeading = norm360(robot.th); }   // snapshotRotationAxis()
+};
+
+/* ========================= Encoder module ================================= */
+const Encoder = {
+  counts(robot) {                                      // L_EN_CNT / R_EN_CNT
+    return {
+      l: Math.round(robot.wheelDistL / WHEEL_CIRC_MM * PULSES_PER_WHEEL_REV),
+      r: Math.round(robot.wheelDistR / WHEEL_CIRC_MM * PULSES_PER_WHEEL_REV)
+    };
+  },
+  reset(robot) { robot.wheelDistL = 0; robot.wheelDistR = 0; },
+  speedDiffRPM(robot) {                                // Encoder_SpeedDiffRPM()
+    const l = robot.vL / WHEEL_CIRC_MM * 60.0;
+    const r = robot.vR / WHEEL_CIRC_MM * 60.0;
+    return l - r;                                      // + = left wheel faster
+  },
+  rpm(robot) {
+    return { l: robot.vL / WHEEL_CIRC_MM * 60.0, r: robot.vR / WHEEL_CIRC_MM * 60.0 };
+  }
+};
+
+/* ======================= MotorControl module ============================== */
+const MotorControl = {
+  run(robot, left, right) {                            // motorRun(l, r)
+    robot.pwmL = clamp(left, -255, 255);
+    robot.pwmR = clamp(right, -255, 255);
+  },
+  brake(robot) { robot.pwmL = 0; robot.pwmR = 0; robot.braking = true; }
+};
+
+/* ========================= distance module ================================ */
+const Distance = {
+  setWallTrim(robot, pwm) { robot.wallTrim = pwm; },   // setStraightWallTrim()
+  // runStraight(): one control step. dtMs is the firmware's ~5 ms loop period.
+  runStraight(robot, dtMs) {
+    const c = robot.ctrl;
+    const imu = MPU6050.readangle(robot);
+    const yaw = imu.headingTrueDeg;
+    robot.yaw = yaw;
+
+    // reference heading capture / re-capture after a turn
+    if (!c.refValid || Math.abs(angleDiff(c.refYaw, norm360(robot.th))) > TURN_RECAPTURE_ANGLE) {
+      c.refYaw = norm360(robot.th);
+      c.refValid = true;
+      if (robot.justTurned) {
+        robot.justTurned = false;
+        c.yawIntegral = 0;
+        robot.smoothL = 0; robot.smoothR = 0;
+        robot.wallTrim = 0;
+      }
+    }
+
+    // steering-authority gating: one driver at a time (yaw / encoder / wall trim)
+    const encDiff = Encoder.speedDiffRPM(robot);
+    let encCorrection = 0;
+    if (c.encArmed && Math.abs(robot.wallTrim) > 3.0) {
+      c.encArmed = false;
+      c.yawIntegral = 0;
+      c.refYaw = norm360(robot.th);
+    } else if (!c.encArmed && Math.abs(robot.wallTrim) < 1.0) {
+      c.encArmed = true;
+      c.refYaw = norm360(robot.th);
+    }
+
+    let yawError = 0;
+    if (robot.gyroAlive && c.encArmed) {
+      yawError = angleDiff(yaw, c.refYaw);
+    } else {
+      c.yawIntegral = 0;
+    }
+
+    if (Math.abs(yawError) > YAW_TOLERANCE) {
+      c.yawIntegral = clamp(c.yawIntegral + yawError, -MAX_YAW_INTEGRAL, MAX_YAW_INTEGRAL);
+    } else {
+      c.yawIntegral *= 0.995;
+    }
+
+    let correction = clamp(yawError * YAW_CORRECTION_GAIN + c.yawIntegral * YAW_INTEGRAL_GAIN,
+      -MAX_YAW_CORRECTION, MAX_YAW_CORRECTION);
+    if (c.encArmed) {
+      encCorrection = clamp(encDiff * ENCODER_CORRECTION_GAIN, -MAX_ENCODER_CORRECTION, MAX_ENCODER_CORRECTION);
+    }
+
+    const lp = clamp(TARGET_SPEED - correction - encCorrection + robot.wallTrim, MIN_POWER, MAX_POWER);
+    const rp = clamp(TARGET_SPEED + correction + encCorrection - robot.wallTrim, MIN_POWER, MAX_POWER);
+
+    // soft-start ramp
+    const scale = dtMs / 5.0;
+    robot.smoothL = clamp(lp, robot.smoothL - RAMP * scale, robot.smoothL + RAMP * scale);
+    robot.smoothR = clamp(rp, robot.smoothR - RAMP * scale, robot.smoothR + RAMP * scale);
+
+    MotorControl.run(robot, robot.smoothL, robot.smoothR);
+
+    robot.dbg = {
+      yawError, correction, encDiff, encCorrection,
+      integral: c.yawIntegral, trim: robot.wallTrim,
+      pwm: [robot.pwmL, robot.pwmR]
+    };
+  }
+};
+
+/* ========================== motion module ================================= */
+const Motion = {
+  // pivotTurn(): shared gyro-closed pivot with the calibrated dead-gyro fallback.
+  startPivot(robot, lPwm, rPwm, targetDeg, fallbackMs, kind) {
+    MPU6050.readangle(robot);
+    MPU6050.snapshotAxis(robot);
+    robot.turn = {
+      kind, lPwm, rPwm, targetDeg, fallbackMs,
+      head0: robot.gyroHeading,
+      start: robot.t,
+      active: true,
+      cmdL: lPwm, cmdR: rPwm
+    };
+    robot.justTurned = true;
+    MotorControl.run(robot, lPwm, rPwm);
+  },
+  // The firmware's 90 deg turns are SINGLE-WHEEL pivots (turnLeft90 =
+  // motorRun(0, turnSpeed)), which swing the chassis about a stationary wheel and
+  // leave it ~45 mm off the corridor centre line every time — fine on the 8x8 car
+  // with a wall-follow fallback, fatal on a 16x16 grid where the next scan then
+  // reads the wrong cell's walls. The simulator drives BOTH wheels (a centre
+  // pivot, the same pattern the firmware already uses for turn180PivotLeft) so
+  // the turn happens on the spot. Everything else — the gyro closing, the
+  // slow-start fade and the dead-gyro fallback times — is unchanged.
+  turnLeft90(robot) { Motion.startPivot(robot, -TURN_SPEED, TURN_SPEED, 90, TURN_90_LEFT_MS, 'L90'); },
+  turnRight90(robot) { Motion.startPivot(robot, TURN_SPEED, -TURN_SPEED, -90, TURN_90_RIGHT_MS, 'R90'); },
+  turn180(robot) { Motion.startPivot(robot, -TURN_SPEED, TURN_SPEED, 180, TURN_180_MS, '180'); },
+
+  // one control step of an in-progress pivot; returns true while still turning
+  step(robot) {
+    const T = robot.turn;
+    if (!T || !T.active) return false;
+    const turned = robot.gyroHeading - T.head0;
+    const error = T.targetDeg - turned;
+    const headingLive = Math.abs(turned) > TURN_HEADING_ALIVE_DEG;
+
+    if (headingLive && Math.abs(error) <= TURN_SLOW_START_DEG) {
+      const s = clamp(TURN_SPEED * (Math.abs(error) / TURN_SLOW_START_DEG), TURN_MIN_PIVOT_PWM, TURN_SPEED);
+      T.cmdL = T.lPwm ? Math.round(s * Math.sign(T.lPwm)) : 0;
+      T.cmdR = T.rPwm ? Math.round(s * Math.sign(T.rPwm)) : 0;
+    } else {
+      T.cmdL = T.lPwm; T.cmdR = T.rPwm;
+    }
+    MotorControl.run(robot, T.cmdL, T.cmdR);
+
+    if (headingLive && Math.abs(error) <= TURN_STOP_TOL_DEG) { T.done = 'heading'; }
+    else if (!headingLive && robot.t - T.start >= T.fallbackMs) { T.done = 'fallback'; }
+    else if (robot.t - T.start > TURN_TIMEOUT_MS) { T.done = 'timeout'; }
+
+    if (T.done) {
+      MotorControl.brake(robot);
+      T.active = false;
+      // The physical Grizzly is mounted so the gz yaw channel stays frozen, and
+      // the motion module then leaves gyroAlive = false — runStraight() falls back to
+      // the encoder equaliser + side-wall trim only. The simulator can model
+      // either case (see the "MPU yaw loop" checkbox): GYRO_ALIVE = true shows
+      // the intended P/I heading loop closing on the turns.
+      robot.gyroAlive = GYRO_ALIVE && Math.abs(turned) > TURN_HEADING_ALIVE_DEG;
+      return false;
+    }
+    return true;
+  }
+};
+
+/* ============================== the plant ================================= */
+/* Differential-drive chassis: PWM -> wheel speed -> pose. This is the only part
+   of the simulator that is not in the firmware (it replaces the real hardware). */
+class Robot {
+  constructor() { this.reset(null); }
+
+  reset(maze) {
+    this.maze = maze;
+    this.rects = maze ? wallRects(maze.walls) : [];
+    this.t = 0;                                   // simulated milliseconds
+    // pose: start cell (0,0) centre, nose North (90 deg CCW from +x)
+    this.x = CELL_MM / 2;
+    this.y = CELL_MM / 2;
+    this.th = DIR_ANGLE[DIR_N];
+    this.startTh = this.th;
+    this.gyroHeading = norm360(this.th);
+    this.yawFrozen = 0;                           // mpu6050 gz channel (frozen on this car)
+    this.gyroAlive = GYRO_ALIVE;                  // motion module default: false
+    this.justTurned = false;
+    this.pwmL = 0; this.pwmR = 0;
+    this.smoothL = 0; this.smoothR = 0;
+    this.vL = 0; this.vR = 0;
+    this.wallTrim = 0;
+    this.wheelDistL = 0; this.wheelDistR = 0;
+    this.odometer = 0;
+    this.ctrl = { refYaw: norm360(this.th), refValid: false, yawIntegral: 0, encArmed: true };
+    this.turn = null;
+    this.braking = false;
+    this.bumps = 0;
+    this.stalled = 0;
+    this.dbg = { yawError: 0, correction: 0, encDiff: 0, encCorrection: 0, integral: 0, trim: 0, pwm: [0, 0] };
+    this.sens = { l: 999, m: 999, r: 999 };
+  }
+
+  wheelSpeed(pwm) {
+    if (Math.abs(pwm) < PWM_STALL) return 0;
+    return Math.sign(pwm) * (Math.abs(pwm) * MM_PER_S_PER_PWM);
+  }
+
+  /* integrate one control period (dtMs milliseconds of simulated time) */
+  tick(dtMs) {
+    const dt = dtMs / 1000.0;
+    this.vL = this.wheelSpeed(this.pwmL) * LEFT_MOTOR_TRIM;
+    this.vR = this.wheelSpeed(this.pwmR);
+
+    const v = (this.vL + this.vR) / 2.0;                       // mm/s
+    const omega = (this.vR - this.vL) / WHEELBASE_MM;          // rad/s, + = CCW = left
+    this.th = norm360(this.th + omega * 180 / Math.PI * dt);
+    this.gyroHeading += omega * 180 / Math.PI * dt;            // integrates like headingTrueDeg
+    this.gyroHeading += 0.02 * dt;                             // small gyro bias drift
+
+    const nx = this.x + v * Math.cos(this.th * Math.PI / 180) * dt;
+    const ny = this.y + v * Math.sin(this.th * Math.PI / 180) * dt;
+
+    // Wall contact: the chassis scrapes along the wall (see resolveCollision) and
+    // the wheels keep turning, so the odometry is only credited with the distance
+    // the car actually covered — that is the wheel slip that makes a real
+    // dead-reckoned mouse drift when it rubs a wall.
+    const res = resolveCollision(this.x, this.y, nx, ny, BODY_R_MM, this.rects);
+    const want = Math.abs(v) * dt;
+    const moved = Math.hypot(res.x - this.x, res.y - this.y);
+    if (res.bumped) this.bumps++;
+    const slipping = want > 0.01 && moved < 0.25 * want;
+    if (slipping) {
+      if (this.pwmL !== 0 || this.pwmR !== 0) this.stalled++;
+    } else {
+      this.stalled = 0;
+      this.wheelDistL += this.vL * dt * (want > 0 ? moved / want : 1);
+      this.wheelDistR += this.vR * dt * (want > 0 ? moved / want : 1);
+    }
+    this.odometer += moved;
+    this.x = res.x; this.y = res.y;
+
+    this.t += dtMs;
+    return res.bumped;
+  }
+}
+
+ 
+
+/* ------------------------------------------------------------------ */
+
+/* ============================================================================
+   solver.js — floodfill module (map + BFS solver) and the main.ino supervisor
+   ----------------------------------------------------------------------------
+   Mirrors the floodfill module cell for cell:
+     floodArray[{flood, neighbours, visited}]  bit0=N bit1=E bit2=S bit3=W
+     setFloodToTargets()            BFS flood
+     findNearestUnvisitedCell()     explorer target selection
+     ff_readWall()                  3-sample majority wall vote
+     ff_goToTargetCell()            turn (motion module) + ff_moveForwardCells()
+     computeWallCenteringTrim()     side-wall corridor centring
+   and runFloodFillSequence(): explore -> return to start -> speed run to centre.
+   ========================================================================== */
+
+const CELLS = MAZE_N * MAZE_N;
+const GOAL_CELLS = [idx(7, 7), idx(7, 8), idx(8, 7), idx(8, 8)];
+
+const FF = {
+  flood: [], startCell: 0, currentCell: 0, targetCell: 0,
+  startDir: 0, currentDir: 0, leftDir: 0, rightDir: 0,
+  cachedLv: 999, cachedRv: 999, readLeftNext: true, wallCenterTrim: 0, wallTrimSign: 1,
+  frontMm: 999,
+
+  begin() {
+    this.flood = [];
+    for (let i = 0; i < CELLS; i++) this.flood.push({ flood: 255, nb: 0, visited: 0 });
+    this.startCell = 0; this.currentCell = 0; this.startDir = DIR_N;
+    this.currentDir = DIR_N;
+    this.leftDir = (this.currentDir + 3) % 4;
+    this.rightDir = (this.currentDir + 1) % 4;
+    this.cachedLv = this.cachedRv = 999;
+    this.wallCenterTrim = 0;
+    this.flood[this.currentCell].visited = 1;
+    this.setFloodToTargets(GOAL_CELLS);
+  },
+
+  // ---- BFS flood (setFloodToTargets) -------------------------------------
+  setFloodToTargets(targets) {
+    for (let i = 0; i < CELLS; i++) this.flood[i].flood = 255;
+    const q = [];
+    for (const t of targets) { if (t < CELLS) { this.flood[t].flood = 0; q.push(t); } }
+    let h = 0;
+    while (h < q.length) {
+      const loc = q[h++];
+      const cur = this.flood[loc].flood;
+      for (let d = 0; d < 4; d++) {
+        if (!this.neighbourValid(loc, d)) continue;
+        if (this.wallExists(loc, d)) continue;
+        const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+        if (this.flood[n].flood > cur + 1) { this.flood[n].flood = cur + 1; q.push(n); }
+      }
+    }
+  },
+
+  neighbourValid(loc, d) {
+    const r = rowOf(loc), c = colOf(loc);
+    if (d === DIR_N) return r < MAZE_N - 1;
+    if (d === DIR_E) return c < MAZE_N - 1;
+    if (d === DIR_S) return r > 0;
+    return c > 0;                                        // W
+  },
+  wallExists(loc, d) { return (this.flood[loc].nb >> d) & 1; },
+  markWall(loc, d) {
+    this.flood[loc].nb |= (1 << d);
+    if (this.neighbourValid(loc, d)) {
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      this.flood[n].nb |= (1 << ((d + 2) % 4));
+    }
+  },
+  allVisited() {
+    for (let i = 0; i < CELLS; i++) if (!this.flood[i].visited && this.flood[i].nb !== 0x0F) return false;
+    return true;
+  },
+  visitedCount() { let n = 0; for (let i = 0; i < CELLS; i++) if (this.flood[i].visited) n++; return n; },
+
+  // ---- explorer: nearest cell the map still needs ------------------------
+  findNearestUnvisited() {
+    const dist = new Int16Array(CELLS).fill(-1);
+    const q = [this.currentCell];
+    dist[this.currentCell] = 0;
+    let h = 0;
+    while (h < q.length) {
+      const loc = q[h++];
+      for (let d = 0; d < 4; d++) {
+        if (!this.neighbourValid(loc, d)) continue;
+        if (this.wallExists(loc, d)) continue;
+        const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+        if (dist[n] !== -1) continue;
+        dist[n] = dist[loc] + 1;
+        if (!this.flood[n].visited && this.flood[n].nb !== 0x0F) return n;
+        q.push(n);
+      }
+    }
+    return -1;
+  },
+
+  // ---- ff_updateTargetCell(): step down the flood gradient ---------------
+  updateTargetCell() {
+    const scoreOf = [0, 1, 2, 1];                        // prefer going straight
+    let best = this.currentCell, bestD = 255, bestScore = 3;
+    for (let d = 0; d < 4; d++) {
+      if (this.wallExists(this.currentCell, d)) continue;
+      if (!this.neighbourValid(this.currentCell, d)) continue;   // maze border
+      const n = this.currentCell + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      const nd = this.flood[n].flood;
+      const score = scoreOf[(d + 4 - this.currentDir) % 4];
+      if (nd < bestD || (nd === bestD && score < bestScore)) { bestD = nd; bestScore = score; best = n; }
+    }
+    this.targetCell = best;
+    return best;
+  },
+
+  absDirTo(target) {
+    const diff = target - this.currentCell;
+    if (diff === MAZE_N) return DIR_N;
+    if (diff === 1) return DIR_E;
+    if (diff === -MAZE_N) return DIR_S;
+    if (diff === -1) return DIR_W;
+    return this.currentDir;
+  },
+  setDir(d) { this.currentDir = d; this.leftDir = (d + 3) % 4; this.rightDir = (d + 1) % 4; },
+
+  // ---- computeWallCenteringTrim(): lateral corridor centring -------------
+  computeWallCenteringTrim(robot) {
+    if (robot.justTurned) { this.cachedLv = this.cachedRv = 999; this.readLeftNext = true; }
+    if (this.readLeftNext) {
+      const v = VL6180.cast(robot, robot.th + 90);
+      this.cachedLv = (v >= 5) ? v : 999;
+      this.readLeftNext = false;
+    } else {
+      const v = VL6180.cast(robot, robot.th - 90);
+      this.cachedRv = (v >= 5) ? v : 999;
+      this.readLeftNext = true;
+    }
+    const lv = this.cachedLv, rv = this.cachedRv;
+    const lOk = lv >= 5 && lv <= CENTER_MAX_VALID_MM;
+    const rOk = rv >= 5 && rv <= CENTER_MAX_VALID_MM;
+    let target = 0;
+    if (lOk && rOk) {
+      const err = rv - lv;                               // steer toward the larger gap
+      if (Math.abs(err) > CENTER_DEADBAND_MM) target = err * CENTER_TRIM_GAIN;
+    } else if (lOk) {
+      target = (CENTER_ONE_WALL_GAP_MM - lv) * CENTER_TRIM_GAIN;
+    } else if (rOk) {
+      target = (rv - CENTER_ONE_WALL_GAP_MM) * CENTER_TRIM_GAIN;
+    }
+    target = clamp(target * this.wallTrimSign, -CENTER_MAX_TRIM, CENTER_MAX_TRIM);
+    this.wallCenterTrim += (target - this.wallCenterTrim) * 0.35;
+    if (Math.abs(this.wallCenterTrim) < 0.5) this.wallCenterTrim = 0;
+    return this.wallCenterTrim;
+  }
+};
+
+/* ======================== supervisor (main.ino) ============================ */
+const DT_MS = 5;            // firmware loop period: runStraight() + delay(5)
+
+const MODULE_SEQ = {
+  EXPLORE: ['scan', 'plan', 'turn', 'drive', 'align'],
+  RETURN: ['plan', 'turn', 'drive', 'align'],
+  SPEED: ['plan', 'turn', 'drive', 'align'],
+  DONE: []
+};
+
+class Supervisor {
+  constructor(robot, ctx) {
+    this.r = robot;
+    this.ctx = ctx;                     // {log(mod,msg), ...}
+    this.reset();
+  }
+
+  reset() {
+    FF.begin();
+    this.phase = 'EXPLORE';
+    this.action = null;
+    this.sub = undefined;
+    this.moves = 0; this.turns = 0; this.aborts = 0; this.scans = 0;
+    this.consecFail = 0; this.consecOpen = 0; this.anyWallEver = false;
+    this.speedPath = [];
+    this.target = -1; this.rel = 0; this.absDir = DIR_N;
+    this.phaseStart = 0;
+    this.ctx.log('MAIN', 'boot: I2C + VL6180 + MPU6050 + motors + encoders OK — flood-fill run armed');
+    this.ctx.log('FF', `geometry: wheel ${WHEEL_DIAMETER_MM} mm, cell ${CELL_MM} mm -> ${STEPS_PER_CELL} steps/cell`);
+  }
+
+  /* ------------------------- action factories ---------------------------- */
+
+  actScan() {
+    const r = this.r, sup = this;
+    MotorControl.brake(r);
+    return {
+      type: 'scan', r, t0: r.t, i: 0, votes: [0, 0, 0], last: [999, 999, 999],
+      update() {
+        const a = this;
+        while (a.i < 3 && r.t - a.t0 >= a.i * 15) {
+          const s = VL6180.readall(r);
+          a.last = [s.l, s.m, s.r];
+          if (s.l < WALL_SIDE_MM) a.votes[0]++;
+          if (s.m < WALL_FRONT_MM) a.votes[1]++;
+          if (s.r < WALL_SIDE_MM) a.votes[2]++;
+          a.i++;
+          r.sens = s;
+          ctxActive('VL6180', `readallSensor()  L=${s.l}  F=${s.m}  R=${s.r} mm`);
+        }
+        return a.i >= 3;
+      },
+      done() {
+        const left = this.votes[0] >= 2, front = this.votes[1] >= 2, right = this.votes[2] >= 2;
+        if (left) FF.markWall(FF.currentCell, FF.leftDir);
+        if (front) FF.markWall(FF.currentCell, FF.currentDir);
+        if (right) FF.markWall(FF.currentCell, FF.rightDir);
+        if (left || front || right) { sup.anyWallEver = true; sup.consecOpen = 0; }
+        else sup.consecOpen++;
+        sup.scans++;
+        r.sens = { l: this.last[0], m: this.last[1], r: this.last[2] };
+        sup.ctx.log('FF', `cell ${FF.currentCell} (${rowOf(FF.currentCell)},${colOf(FF.currentCell)}) ` +
+          `L=${this.last[0]} F=${this.last[1]} R=${this.last[2]} -> ` +
+          `${left ? 'W' : 'O'}${front ? 'W' : 'O'}${right ? 'W' : 'O'}`);
+        ctxActive('FF', `ff_readWall(): map updated for cell ${FF.currentCell}`);
+      }
+    };
+  }
+
+  actPlan(mode) {
+    const r = this.r, sup = this;
+    MotorControl.brake(r);
+    return {
+      type: 'plan', r, t0: r.t,
+      update() {
+        ctxActive('FF', mode === 'explore'
+          ? 'findNearestUnvisitedCell() + setFloodToTargets() + BFS'
+          : 'setFloodToTargets(goal) + BFS');
+        return r.t - this.t0 >= 20;
+      },
+      done() {
+        if (mode === 'explore') {
+          const nxt = FF.findNearestUnvisited();
+          if (nxt < 0) { sup.target = -1; return; }
+          FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
+        }
+        sup.target = FF.updateTargetCell();
+        if (sup.target === FF.currentCell) { sup.target = -1; return; }
+        sup.absDir = FF.absDirTo(sup.target);
+        sup.rel = (sup.absDir + 4 - FF.currentDir) % 4;
+        sup.ctx.log('FF', `flood ${FF.flood[FF.currentCell].flood} -> target ${sup.target} ` +
+          `(${DIR_NAME[sup.absDir]}, ${['straight', 'right', 'back', 'left'][sup.rel]})`);
+      }
+    };
+  }
+
+  actTurn(rel, absDir) {
+    const r = this.r, sup = this;
+    return {
+      type: 'turn', r, started: false,
+      update() {
+        if (!this.started) {
+          this.started = true;
+          if (rel === 1) Motion.turnRight90(r);
+          else if (rel === 2) Motion.turn180(r);
+          else Motion.turnLeft90(r);
+          sup.turns++;
+          sup.ctx.log('MOTION', `turn${rel === 1 ? 'Right90' : rel === 2 ? '180PivotLeft' : 'Left90'}() ` +
+            `— gyro-closed pivot at PWM ${TURN_SPEED}`);
+        }
+        const turning = Motion.step(r);
+        const T = r.turn;
+        ctxActive('MOTION', `pivot ${(T ? (r.gyroHeading - T.head0).toFixed(1) : 0)}° / ${T ? T.targetDeg : 0}° ` +
+          `| PWM ${r.pwmL}/${r.pwmR}`);
+        ctxActive('MPU', `headingTrueDeg ${r.gyroHeading.toFixed(1)}° (gyroAlive=${r.gyroAlive})`);
+        if (!turning) {
+          FF.setDir(absDir);
+          sup.ctx.log('MPU', `turn closed on heading ${r.gyroHeading.toFixed(1)}° (${T ? T.done : '?'})`);
+        }
+        return !turning;
+      }
+    };
+  }
+
+  /* Recovery after an aborted segment (simulator assist). The firmware leaves
+     the car where the emergency brake caught it — half-way into the corridor —
+     and the next ff_readWall() then reads walls from a position that belongs to
+     no cell, which marks phantom walls into the map. Here the segment is unwound
+     on the encoders so the car is back on the cell centre before it re-scans. */
+  actRecover(steps) {
+    const r = this.r, sup = this;
+    return {
+      type: 'recover', r, started: false, t0: 0,
+      update() {
+        if (!this.started) {
+          this.started = true; this.t0 = r.t;
+          sup.ctx.log('FF', `recover: unwinding ${steps} encoder steps back to the cell centre`);
+        }
+        const c = Encoder.counts(r);
+        const done = Math.min(c.l, c.r);
+        MotorControl.run(r, -110, -110);
+        ctxActive('MOTOR', `motorRun(-110, -110) — recovery, ${done} steps left`);
+        if (done <= 0 || r.t - this.t0 > 3000) { MotorControl.brake(r); return true; }
+        return false;
+      }
+    };
+  }
+
+  /* ff_updateYawSetpoint(): the firmware declares this alignment helper but the
+     maze path never calls it. It is enabled here so a 256-cell exploration stays
+     on the cell grid despite the frozen gz-yaw channel. */
+  actAlign() {
+    const r = this.r, sup = this;
+    const want = DIR_ANGLE[FF.currentDir];
+    const err = angleDiff(want, r.th);
+    return {
+      type: 'align', r, started: false, err,
+      update() {
+        if (!this.started) {
+          this.started = true;
+          if (Math.abs(this.err) < 2.5) return true;
+          const fb = Math.abs(this.err) * (TURN_90_LEFT_MS / 90);
+          const pwm = Math.round(clamp(Math.abs(this.err) * 4, 60, 120));
+          Motion.startPivot(r, this.err > 0 ? -pwm : pwm, this.err > 0 ? pwm : -pwm, this.err, fb, 'ALIGN');
+          sup.ctx.log('FF', `ff_updateYawSetpoint(): heading off by ${this.err.toFixed(1)}° — re-aligning`);
+        }
+        const turning = Motion.step(r);
+        ctxActive('MOTION', `align: ${angleDiff(want, r.th).toFixed(1)}° to go | PWM ${r.pwmL}/${r.pwmR}`);
+        return !turning;
+      }
+    };
+  }
+
+  /* ff_moveForwardCells(1): encoder-driven segment with front-wall abort and
+     side-wall centring, exactly as in the floodfill module */
+  actDrive(destCell) {
+    const r = this.r, sup = this;
+    Encoder.reset(r);
+    // ff_moveForwardCells() normally drives a blind STEPS_PER_CELL burst, so any
+    // positioning error carries over into the next cell and grows without bound.
+    // A real mouse keeps its pose bounded by fusing the encoders with the wall
+    // sensors; this simulation assumes that fused estimate (ideal odometry) and
+    // drives the measured remaining distance to the next cell centre. The stop
+    // itself is still purely encoder-driven, so the Encoder module stays in the loop.
+    const cx = colOf(destCell) * CELL_MM + CELL_MM / 2;
+    const cy = rowOf(destCell) * CELL_MM + CELL_MM / 2;
+    const along = (cx - r.x) * Math.cos(r.th * Math.PI / 180) + (cy - r.y) * Math.sin(r.th * Math.PI / 180);
+    const targetSteps = Math.round(clamp(along, 0.45 * CELL_MM, 1.6 * CELL_MM) * STEPS_PER_MM);
+    return {
+      type: 'drive', r, target: targetSteps, start: r.t, ok: false, reason: '',
+      frontStreak: 0, prevM: 999, lastFront: 0, lastSide: 0,
+      update(dt) {
+        const c = Encoder.counts(r);
+        const done = Math.min(c.l, c.r);
+        if (done >= this.target) {
+          MotorControl.brake(r); Distance.setWallTrim(r, 0);
+          this.ok = true; return true;
+        }
+        if (r.t - this.start > 6000) {
+          MotorControl.brake(r); Distance.setWallTrim(r, 0);
+          this.ok = false; this.reason = 'TIMEOUT';
+          sup.ctx.log('WARN', 'ff_moveForwardCells(): segment TIMEOUT — move aborted');
+          return true;
+        }
+        // Wheels stalled against a wall: a real car never reaches its encoder
+        // target either, so treat it as an unexpected wall.
+        if (r.stalled > 40) {
+          MotorControl.brake(r); Distance.setWallTrim(r, 0);
+          this.ok = false; this.reason = 'BLOCKED'; this.abortSteps = done;
+          FF.markWall(FF.currentCell, FF.currentDir);
+          sup.ctx.log('WARN', `wheels stalled against a wall at ${done}/${this.target} steps — wall marked`);
+          return true;
+        }
+        // emergency front-wall check: armed after 1/4 cell, disarmed for the last
+        // FRONT_POLL_STOP_MM before the encoder takes over
+        if (this.target - done > STEPS_PER_MM * FRONT_POLL_STOP_MM && done >= STEPS_PER_CELL / 4 && r.t - this.lastFront >= 15) {
+          this.lastFront = r.t;
+          const fd = VL6180.cast(r, r.th);
+          FF.frontMm = fd;
+          const hugging = (FF.cachedLv < 45) || (FF.cachedRv < 45);
+          const open = (FF.cachedLv >= CENTER_MAX_VALID_MM) && (FF.cachedRv >= CENTER_MAX_VALID_MM);
+          const suspect = hugging || open;
+          const near = fd < (hugging ? 80 : 130);
+          const jump = near && this.prevM > 200;
+          this.prevM = fd;
+          this.frontStreak = near ? this.frontStreak + 1 : 0;
+          if (this.frontStreak >= (jump ? 6 : 3)) {
+            MotorControl.brake(r); Distance.setWallTrim(r, 0);
+            this.ok = false; this.reason = 'FRONT_WALL'; this.abortSteps = done;
+            if (!suspect) FF.markWall(FF.currentCell, FF.currentDir);
+            sup.ctx.log('WARN', `wall ${fd} mm ahead at ${done}/${this.target} steps — braking` +
+              (suspect ? ' (suspect: side-on/open — map NOT updated)' : ' — wall marked'));
+            return true;
+          }
+        }
+        if (r.t - this.lastSide >= 25) {
+          this.lastSide = r.t;
+          Distance.setWallTrim(r, FF.computeWallCenteringTrim(r));
+        }
+        Distance.runStraight(r, dt);
+        const rpm = Encoder.rpm(r);
+        ctxActive('DISTANCE', `runStraight(): err ${r.dbg.yawError.toFixed(1)}° corr ${r.dbg.correction.toFixed(1)} ` +
+          `enc ${r.dbg.encDiff.toFixed(1)} trim ${r.dbg.trim.toFixed(1)} -> PWM ${r.pwmL.toFixed(0)}/${r.pwmR.toFixed(0)}`);
+        ctxActive('MOTOR', `motorRun(${r.pwmL.toFixed(0)}, ${r.pwmR.toFixed(0)})`);
+        ctxActive('ENC', `steps ${c.l}/${c.r} (${done}/${this.target})  ${rpm.l.toFixed(0)}/${rpm.r.toFixed(0)} RPM`);
+        return false;
+      }
+    };
+  }
+
+  /* --------------------------- phase control ----------------------------- */
+
+  nextSub() {
+    const seq = MODULE_SEQ[this.phase] || [];
+    if (!seq.length) return null;
+    const i = seq.indexOf(this.sub);
+    return seq[(i + 1) % seq.length];      // i = -1 -> first step
+  }
+
+  nextAction(sub) {
+    if (!sub) return null;
+    if (this.phase === 'EXPLORE' && sub === 'scan') {
+      if (FF.allVisited()) return this.finishExplore();
+      return this.actScan();
+    }
+    if (sub === 'plan') {
+      if (this.phase === 'RETURN' && FF.currentCell === FF.startCell) return this.finishPhase();
+      if (this.phase === 'SPEED' && GOAL_CELLS.includes(FF.currentCell)) return this.finishPhase();
+      return this.actPlan(this.phase === 'EXPLORE' ? 'explore' : 'goal');
+    }
+    if (sub === 'turn') {
+      if (this.target < 0 || this.rel === 0) return null;
+      return this.actTurn(this.rel, this.absDir);
+    }
+    if (sub === 'drive') return this.actDrive(this.target);
+    if (sub === 'align') return this.actAlign();
+    return null;
+  }
+
+  finishExplore() {
+    this.ctx.log('FF', `explore complete: ${FF.visitedCount()} cells mapped — FF_saveMap() to EEPROM`);
+    this.phase = 'RETURN';
+    this.sub = undefined;
+    this.target = -1;
+    FF.setFloodToTargets([FF.startCell, FF.startCell, FF.startCell, FF.startCell]);
+    this.ctx.log('MAIN', 'phase 2/3: FF_returnToStart() — driving back to the start cell');
+    this.phaseStart = this.r.t;
+    return null;
+  }
+
+  finishPhase() {
+    if (this.phase === 'RETURN') {
+      this.ctx.log('MAIN', 'back at the start cell — phase 3/3: FF_runShortestPathToGoal()');
+      this.phase = 'SPEED';
+      this.sub = undefined;
+      this.target = -1;
+      this.phaseStart = this.r.t;
+      FF.setFloodToTargets(GOAL_CELLS);
+      return null;
+    }
+    this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished`);
+    this.phase = 'DONE';
+    MotorControl.brake(this.r);
+    return null;
+  }
+
+  /* ------------------------- one control tick ---------------------------- */
+  step(dtMs) {
+    const r = this.r;
+    if (this.phase === 'DONE') { MotorControl.brake(r); return; }
+
+    if (!this.action) {
+      let guard = 0;
+      while (!this.action && guard++ < 8) {
+        this.sub = this.nextSub();
+        const a = this.nextAction(this.sub);
+        if (a) { this.action = a; this.actionStart = r.t; }
+      }
+      if (!this.action) return;
+    }
+
+    const a = this.action;
+    const done = a.update(dtMs);
+    r.tick(dtMs);                       // plant integration for this control period
+    if (done) {
+      if (a.done) a.done();
+      this.onActionFinished(a);
+      this.action = null;
+    }
+  }
+
+  onActionFinished(a) {
+    if (a.type === 'scan' && !this.anyWallEver && this.consecOpen >= 6) {
+      this.ctx.log('WARN', '6 cells with no wall on any sensor — sensorPreflight() would abort the run');
+      this.phase = 'DONE';
+      return;
+    }
+    if (a.type === 'plan' && this.target < 0) {
+      if (this.phase === 'EXPLORE') this.finishExplore();
+      else {
+        this.ctx.log('WARN', 'no route to the destination — stopping');
+        this.phase = 'DONE';
+      }
+      this.sub = undefined;
+      return;
+    }
+    if (a.type === 'drive') {
+      if (a.ok) {
+        FF.currentCell = this.target;
+        FF.flood[FF.currentCell].visited = 1;
+        this.moves++;
+        this.consecFail = 0;
+        if (this.phase === 'SPEED') this.speedPath.push(FF.currentCell);
+        this.ctx.log('DRIVE', `segment OK — arrived in cell ${FF.currentCell} ` +
+          `(${rowOf(FF.currentCell)},${colOf(FF.currentCell)})`);
+      } else {
+        this.aborts++;
+        this.consecFail++;
+        this.ctx.log('FF', `move ${a.reason} — re-planning from cell ${FF.currentCell}`);
+        if ((a.reason === 'FRONT_WALL' || a.reason === 'BLOCKED') && (a.abortSteps || 0) > 40) {
+          this.action = this.actRecover(a.abortSteps);   // unwind to the cell centre
+          return;
+        }
+        if (this.consecFail >= 4) {
+          this.ctx.log('WARN', '4 consecutive blocked moves — map inconsistent, stopping');
+          this.phase = 'DONE';
+        }
+      }
+    }
+    // Phase watchdog. The firmware allows 90 s for the explore phase, which fits
+    // its 8x8 maze; sweeping a 16x16 grid needs ~5 minutes of simulated time, so
+    // the budgets are scaled with the cell count.
+    const budget = this.phase === 'EXPLORE' ? 600000 : 300000;
+    if (this.r.t - this.phaseStart > budget) {
+      this.ctx.log('WARN', `phase watchdog (${budget / 1000} s) — stopping`);
+      this.phase = 'DONE';
+    }
+  }
+}
+
+/* module-activity reporter, installed by app.js */
+let ctxActive = function () { };
+function setActiveReporter(fn) { ctxActive = fn; }
+
+
+/* ------------------------------------------------------------------ */
+
+/* ============================================================================
+   app.js — rendering, telemetry, pipeline display and the animation clock
+   ========================================================================== */
+
+/* Surface any startup/loop exception on the page instead of failing silently. */
+window.addEventListener('error', (e) => {
+  const b = document.getElementById('bootError');
+  if (!b) return;
+  b.hidden = false;
+  b.textContent = 'Error: ' + (e.message || e) +
+    (e.filename ? `  (${e.filename}:${e.lineno})` : '') + ' — see the browser console.';
+});
+
+const canvas = document.getElementById('mazeCanvas');
+const ctx2d = canvas.getContext('2d');
+const MARGIN = 22;
+const CELL_PX = (canvas.width - 2 * MARGIN) / MAZE_N;
+
+const MODULES = [
+  { key: 'MAIN', name: 'main.ino', cls: '' },
+  { key: 'VL6180', name: 'VL6180 module', cls: '' },
+  { key: 'FF', name: 'floodfill module', cls: '' },
+  { key: 'MPU', name: 'mpu6050 module', cls: '' },
+  { key: 'MOTION', name: 'motion module', cls: 'turn' },
+  { key: 'DISTANCE', name: 'distance module', cls: 'drive' },
+  { key: 'MOTOR', name: 'MotorControl module', cls: '' },
+  { key: 'ENC', name: 'Encoder module', cls: '' }
+];
+
+let maze = makeMaze();
+let robot = new Robot();
+let sup = null;
+let running = false;
+let speedMul = 8;
+let trailPts = [];
+let lastTrailT = -1;
+let active = new Set();
+let msgs = {};
+const ctxObj = {
+  log: (mod, msg) => addLog(mod, msg)
+};
+
+/* ----------------------------- boot --------------------------------------- */
+function boot(newMaze) {
+  if (newMaze) maze = makeMaze();
+  robot.reset(maze);
+  sup = new Supervisor(robot, ctxObj);
+  trailPts = [];
+  lastTrailT = -1;
+  setActiveReporter((key, msg) => { active.add(key); msgs[key] = msg; });
+  addLog('MAIN', `new maze generated — start cell (0,0) facing N, goal = centre 2x2`);
+}
+
+/* -------------------------------- log ------------------------------------- */
+const logEl = document.getElementById('log');
+function addLog(mod, msg) {
+  const d = document.createElement('div');
+  const t = (sup ? sup.r.t : robot.t) / 1000;
+  d.innerHTML = `<span class="t">${t.toFixed(2)}s</span> <span class="m ${mod}">[${mod}]</span> ${msg}`;
+  logEl.appendChild(d);
+  while (logEl.childElementCount > 300) logEl.removeChild(logEl.firstChild);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/* ----------------------------- pipeline ----------------------------------- */
+const pipeEl = document.getElementById('pipeline');
+pipeEl.innerHTML = MODULES.map(m =>
+  `<div class="pcard ${m.cls}" id="pc_${m.key}"><span class="pname">${m.name}</span><span class="pmsg" id="pm_${m.key}"></span></div>`
+).join('<div class="parrow">▼</div>');
+
+function paintPipeline() {
+  for (const m of MODULES) {
+    const card = document.getElementById('pc_' + m.key);
+    const msg = document.getElementById('pm_' + m.key);
+    card.classList.toggle('active', active.has(m.key));
+    if (msgs[m.key] !== undefined) msg.textContent = msgs[m.key];
+  }
+}
+
+/* ---------------------------- telemetry ----------------------------------- */
+const telEl = document.getElementById('tel');
+const TEL_ROWS = [
+  ['ToF left', () => fmtMM(robot.sens.l), () => robot.sens.l < WALL_SIDE_MM],
+  ['ToF front', () => fmtMM(robot.sens.m), () => robot.sens.m < WALL_FRONT_MM],
+  ['ToF right', () => fmtMM(robot.sens.r), () => robot.sens.r < WALL_SIDE_MM],
+  ['heading', () => robot.th.toFixed(1) + '°', () => false],
+  ['cell', () => `(${rowOf(FF.currentCell)},${colOf(FF.currentCell)})`, () => false],
+  ['dir', () => DIR_NAME[FF.currentDir], () => false],
+  ['flood', () => String(FF.flood[FF.currentCell].flood), () => false],
+  ['target', () => sup && sup.target >= 0 ? String(sup.target) : '–', () => false],
+  ['yaw error', () => robot.dbg.yawError.toFixed(2) + '°', () => Math.abs(robot.dbg.yawError) > 3],
+  ['yaw corr', () => robot.dbg.correction.toFixed(1), () => false],
+  ['yaw integral', () => robot.dbg.integral.toFixed(0), () => false],
+  ['enc diff', () => robot.dbg.encDiff.toFixed(1) + ' rpm', () => false],
+  ['wall trim', () => robot.dbg.trim.toFixed(1), () => Math.abs(robot.dbg.trim) > 20],
+  ['PWM L / R', () => `${robot.pwmL.toFixed(0)} / ${robot.pwmR.toFixed(0)}`, () => false],
+  ['RPM L / R', () => { const r = Encoder.rpm(robot); return `${r.l.toFixed(0)} / ${r.r.toFixed(0)}`; }, () => false],
+  ['steps L / R', () => { const c = Encoder.counts(robot); return `${c.l} / ${c.r}`; }, () => false],
+  ['odometry', () => (robot.odometer / 1000).toFixed(2) + ' m', () => false]
+];
+telEl.innerHTML = TEL_ROWS.map((r, i) =>
+  `<div class="tel-row"><span>${r[0]}</span><b id="tv_${i}">–</b></div>`).join('');
+
+function fmtMM(v) { return v >= 999 ? '999 (no echo)' : v + ' mm'; }
+
+let lastTel = 0;
+function paintTelemetry(now) {
+  if (now - lastTel < 100) return;
+  lastTel = now;
+  for (let i = 0; i < TEL_ROWS.length; i++) {
+    const el = document.getElementById('tv_' + i);
+    let v;
+    try { v = TEL_ROWS[i][1](); } catch (e) { v = '–'; }
+    el.textContent = v;
+    el.className = TEL_ROWS[i][2]() ? 'warn' : (i < 3 || i >= 8 ? 'hi' : '');
+  }
+  document.getElementById('hudCell').textContent = `(${rowOf(FF.currentCell)},${colOf(FF.currentCell)})`;
+  document.getElementById('hudDir').textContent = DIR_NAME[FF.currentDir];
+  document.getElementById('hudFlood').textContent = FF.flood[FF.currentCell].flood;
+  document.getElementById('hudTarget').textContent = sup && sup.target >= 0 ? sup.target : '–';
+  const badge = document.getElementById('phaseBadge');
+  badge.textContent = sup ? sup.phase : 'IDLE';
+  badge.className = 'phase-badge ' + (sup ? sup.phase : '');
+  document.getElementById('simClock').textContent = (robot.t / 1000).toFixed(2) + ' s';
+  document.getElementById('actionName').textContent = sup && sup.action ? sup.action.type : '–';
+
+  const pct = wallLearnPct();
+  document.getElementById('stCells').textContent = `${FF.visitedCount()} / ${CELLS}`;
+  document.getElementById('stWalls').textContent = pct.toFixed(0) + '%';
+  document.getElementById('stMoves').textContent = String(sup ? sup.moves : 0);
+  document.getElementById('stDist').textContent = (robot.odometer / 1000).toFixed(2) + ' m';
+  document.getElementById('stTurns').textContent = String(sup ? sup.turns : 0);
+  document.getElementById('stAborts').textContent = String(sup ? sup.aborts : 0);
+}
+
+function wallLearnPct() {
+  const seen = new Map();
+  for (let r = 0; r < MAZE_N; r++) {
+    for (let c = 0; c < MAZE_N; c++) {
+      const m = maze.walls[idx(r, c)], i = idx(r, c);
+      for (let d = 0; d < 4; d++) {
+        if (!(m & (1 << d))) continue;
+        let key;
+        if (d === DIR_N) key = 'h' + (r + 1) + '_' + c;
+        else if (d === DIR_S) key = 'h' + r + '_' + c;
+        else if (d === DIR_E) key = 'v' + r + '_' + (c + 1);
+        else key = 'v' + r + '_' + c;
+        if (!seen.has(key)) seen.set(key, ((FF.flood[i].nb >> d) & 1) ? 1 : 0);
+      }
+    }
+  }
+  let known = 0, total = 0;
+  for (const v of seen.values()) { total++; known += v; }
+  return total ? known / total * 100 : 0;
+}
+
+/* ------------------------------ drawing ----------------------------------- */
+const sx = (x) => MARGIN + (x / CELL_MM) * CELL_PX;
+const sy = (y) => canvas.height - MARGIN - (y / CELL_MM) * CELL_PX;
+
+function draw() {
+  const g = ctx2d;
+  g.clearRect(0, 0, canvas.width, canvas.height);
+
+  // floor + cell grid
+  g.fillStyle = '#0a111f';
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.strokeStyle = '#132240';
+  g.lineWidth = 1;
+  for (let i = 0; i <= MAZE_N; i++) {
+    g.beginPath();
+    g.moveTo(MARGIN + i * CELL_PX, MARGIN); g.lineTo(MARGIN + i * CELL_PX, canvas.height - MARGIN);
+    g.moveTo(MARGIN, MARGIN + i * CELL_PX); g.lineTo(canvas.width - MARGIN, MARGIN + i * CELL_PX);
+    g.stroke();
+  }
+
+  // visited cells
+  g.fillStyle = 'rgba(56,189,248,0.13)';
+  for (let i = 0; i < CELLS; i++) {
+    if (!FF.flood[i].visited) continue;
+    const r = rowOf(i), c = colOf(i);
+    g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
+  }
+
+  // goal block
+  g.fillStyle = 'rgba(34,197,94,0.20)';
+  g.strokeStyle = '#22c55e';
+  g.lineWidth = 1.5;
+  for (const gc of GOAL_CELLS) {
+    const r = rowOf(gc), c = colOf(gc);
+    g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
+  }
+  g.strokeRect(MARGIN + 7 * CELL_PX, canvas.height - MARGIN - 9 * CELL_PX, 2 * CELL_PX, 2 * CELL_PX);
+
+  // start cell
+  g.strokeStyle = 'rgba(245,158,11,0.8)';
+  g.strokeRect(MARGIN + 1, canvas.height - MARGIN - CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
+
+  // walls: true maze (faint) then what the mouse has learned (bright)
+  const rects = robot.rects;
+  if (showTruth) {
+    g.strokeStyle = '#2b3d59';
+    g.lineWidth = 3;
+    g.beginPath();
+    for (const R of rects) {
+      const x0 = sx(R[0]), x1 = sx(R[2]);
+      const y0 = sy(R[3]), y1 = sy(R[1]);
+      g.rect(x0, y0, x1 - x0, y1 - y0);
+    }
+    g.stroke();
+  }
+  g.strokeStyle = '#7dd3fc';
+  g.lineWidth = 3.5;
+  g.lineCap = 'round';
+  g.beginPath();
+  for (const R of rects) {
+    if (!((FF.flood[R[4]].nb >> R[5]) & 1)) continue;
+    const x0 = sx(R[0]), x1 = sx(R[2]);
+    const y0 = sy(R[3]), y1 = sy(R[1]);
+    g.rect(x0, y0, x1 - x0, y1 - y0);
+  }
+  g.stroke();
+
+  // flood values
+  if (showFlood) {
+    g.font = '9px ui-monospace, monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let i = 0; i < CELLS; i++) {
+      const v = FF.flood[i].flood;
+      if (v === 255) continue;
+      const r = rowOf(i), c = colOf(i);
+      g.fillStyle = GOAL_CELLS.includes(i) ? '#86efac' : 'rgba(147,197,253,0.75)';
+      g.fillText(String(v), MARGIN + c * CELL_PX + CELL_PX / 2, canvas.height - MARGIN - (r + 0.5) * CELL_PX);
+    }
+  }
+
+  // speed-run path
+  if (sup && sup.speedPath.length > 1) {
+    g.strokeStyle = 'rgba(34,197,94,0.85)';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    sup.speedPath.forEach((cell, k) => {
+      const r = rowOf(cell), c = colOf(cell);
+      const X = MARGIN + (c + 0.5) * CELL_PX, Y = canvas.height - MARGIN - (r + 0.5) * CELL_PX;
+      if (k === 0) g.moveTo(X, Y); else g.lineTo(X, Y);
+    });
+    g.stroke();
+  }
+
+  // travelled trail
+  if (showTrail && trailPts.length > 1) {
+    g.strokeStyle = 'rgba(56,189,248,0.35)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    trailPts.forEach((p, k) => {
+      const X = sx(p.x), Y = sy(p.y);
+      if (k === 0) g.moveTo(X, Y); else g.lineTo(X, Y);
+    });
+    g.stroke();
+  }
+
+  // ---- the mouse ----
+  const X = sx(robot.x), Y = sy(robot.y);
+  const rad = (BODY_R_MM / CELL_MM) * CELL_PX;
+  const th = robot.th * Math.PI / 180;
+
+  if (showSensors) {
+    const beams = [
+      { a: th + Math.PI / 2, d: robot.sens.l, thr: WALL_SIDE_MM },
+      { a: th, d: robot.sens.m, thr: WALL_FRONT_MM },
+      { a: th - Math.PI / 2, d: robot.sens.r, thr: WALL_SIDE_MM }
+    ];
+    for (const b of beams) {
+      const len = (Math.min(b.d === 999 ? VL6180_MAX_MM : b.d, VL6180_MAX_MM) / CELL_MM) * CELL_PX;
+      const ex = X + Math.cos(b.a) * len, ey = Y - Math.sin(b.a) * len;
+      g.strokeStyle = b.d < b.thr ? 'rgba(244,63,94,0.95)' : 'rgba(125,211,252,0.5)';
+      g.lineWidth = 2;
+      g.setLineDash([4, 3]);
+      g.beginPath(); g.moveTo(X, Y); g.lineTo(ex, ey); g.stroke();
+      g.setLineDash([]);
+      if (b.d < VL6180_MAX_MM) {
+        g.fillStyle = b.d < b.thr ? '#fda4af' : '#93c5fd';
+        g.font = '9px ui-monospace, monospace';
+        g.textAlign = 'center';
+        g.fillText(b.d + '', ex, ey - 5);
+      }
+    }
+  }
+
+  // chassis
+  g.save();
+  g.translate(X, Y);
+  g.rotate(-th);                       // screen y is flipped
+  g.fillStyle = '#f59e0b';
+  g.strokeStyle = '#7c2d12';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.roundRect(-rad * 0.9, -rad * 0.9, rad * 1.8, rad * 1.8, 4);
+  g.fill(); g.stroke();
+  // nose points +x in world = East-facing at th = 0
+  g.fillStyle = '#fff7ed';
+  g.beginPath();
+  g.moveTo(rad * 0.9, 0); g.lineTo(rad * 0.25, -rad * 0.42); g.lineTo(rad * 0.25, rad * 0.42);
+  g.closePath(); g.fill();
+  // wheels
+  g.fillStyle = '#1f2937';
+  g.fillRect(-rad * 0.75, -rad * 1.05, rad * 0.5, rad * 0.18);
+  g.fillRect(-rad * 0.75, rad * 0.87, rad * 0.5, rad * 0.18);
+  g.restore();
+}
+
+/* ------------------------------- clock ------------------------------------ */
+let lastFrame = 0;
+function frame(now) {
+  if (!lastFrame) lastFrame = now;
+  let wallMs = now - lastFrame;
+  lastFrame = now;
+  if (wallMs > 120) wallMs = 120;
+
+  active.clear();
+
+  if (running && sup && sup.phase !== 'DONE') {
+    let budget = wallMs * speedMul;
+    let guard = 0;
+    while (budget > 0 && guard++ < 4000) {
+      const dt = Math.min(DT_MS, budget);
+      sup.step(dt);
+      budget -= dt;
+      if (robot.t - lastTrailT >= 40) {
+        lastTrailT = robot.t;
+        trailPts.push({ x: robot.x, y: robot.y });
+        if (trailPts.length > 6000) trailPts.shift();
+      }
+      if (sup.phase === 'DONE') break;
+    }
+  }
+
+  draw();
+  paintPipeline();
+  paintTelemetry(now);
+  requestAnimationFrame(frame);
+}
+
+/* ------------------------------- controls --------------------------------- */
+let showFlood = true, showTruth = true, showSensors = true, showTrail = true;
+
+document.getElementById('btnPlay').onclick = (e) => {
+  running = !running;
+  e.target.textContent = running ? '❚❚ Pause' : '▶ Run';
+  if (running && sup && sup.phase === 'DONE') {
+    // finished: pressing run restarts with the same maze
+    boot(false);
+  }
+};
+document.getElementById('btnStep').onclick = () => {
+  running = false;
+  document.getElementById('btnPlay').textContent = '▶ Run';
+  if (!sup || sup.phase === 'DONE') return;
+  active.clear();
+  let a0 = sup.action;
+  if (!a0) { let g = 0; while (!sup.action && g++ < 60) sup.step(DT_MS); a0 = sup.action; }
+  if (!a0) return;
+  let n = 0;
+  while (sup.action === a0 && n++ < 40000) {
+    sup.step(DT_MS);
+    if (robot.t - lastTrailT >= 40) { lastTrailT = robot.t; trailPts.push({ x: robot.x, y: robot.y }); }
+  }
+};
+document.getElementById('btnReset').onclick = () => { boot(false); document.getElementById('log').innerHTML = ''; };
+document.getElementById('btnNewMaze').onclick = () => { boot(true); document.getElementById('log').innerHTML = ''; };
+document.getElementById('btnClearLog').onclick = () => { document.getElementById('log').innerHTML = ''; };
+document.getElementById('speedRange').oninput = (e) => {
+  speedMul = +e.target.value;
+  document.getElementById('speedLabel').textContent = speedMul + '×';
+};
+document.getElementById('showFlood').onchange = (e) => showFlood = e.target.checked;
+document.getElementById('showTruth').onchange = (e) => showTruth = e.target.checked;
+document.getElementById('showSensors').onchange = (e) => showSensors = e.target.checked;
+document.getElementById('showTrail').onchange = (e) => showTrail = e.target.checked;
+document.getElementById('gyroAlive').onchange = (e) => {
+  GYRO_ALIVE = e.target.checked;
+  robot.gyroAlive = GYRO_ALIVE;
+  addLog('MPU', GYRO_ALIVE
+    ? 'gyroAlive = true — runStraight() uses the P/I heading loop'
+    : 'gyroAlive = false — frozen gz yaw: encoder equaliser + wall trim only (as on the real car)');
+};
+
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    this.beginPath(); this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r); this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r); this.closePath(); return this;
+  };
+}
+
+boot(false);
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title> Micromouse Module Interaction Simulator by (Olaito Adeyemi Damilola) </title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="bootError" class="boot-error" hidden></div>
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <div>
+      <h1> Micromouse Module Interaction Simulator</h1>
+      <p class="sub">16 &times; 16 unknown maze &middot; firmware-accurate pipeline: VL6180 &rarr; floodfill &rarr; motion / distance &rarr; MotorControl &rarr; wheels &rarr; Encoder + MPU6050 feedback</p>
+    </div>
+  </div>
+  <div class="phasebox">
+    <div class="phase-row">
+      <span class="phase-label">RUN PHASE</span>
+      <span id="phaseBadge" class="phase-badge">IDLE</span>
+    </div>
+    <div class="phase-row small">
+      <span>Sim time</span><span id="simClock" class="mono">0.00 s</span>
+    </div>
+    <div class="phase-row small">
+      <span>Action</span><span id="actionName" class="mono">–</span>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ======================= LEFT: MAZE + CONTROLS ======================= -->
+  <section class="panel maze-panel">
+    <div class="panel-head">
+      <h2>Maze view — 16 &times; 16</h2>
+      <div class="legend-inline">
+        <span class="key k-known"></span>known wall
+        <span class="key k-unknown"></span>unknown (true) wall
+        <span class="key k-visited"></span>visited
+        <span class="key k-goal"></span>goal
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="mazeCanvas" width="720" height="720" aria-label="Micromouse maze simulation"></canvas>
+      <div id="hud" class="hud">
+        <div class="hud-row"><span>cell</span><b id="hudCell" class="mono">(0,0)</b></div>
+        <div class="hud-row"><span>heading</span><b id="hudDir" class="mono">N</b></div>
+        <div class="hud-row"><span>flood</span><b id="hudFlood" class="mono">–</b></div>
+        <div class="hud-row"><span>target</span><b id="hudTarget" class="mono">–</b></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnPlay" class="btn primary">▶ Run</button>
+      <button id="btnStep" class="btn">⏭ Step action</button>
+      <button id="btnReset" class="btn">⟲ Restart run</button>
+      <button id="btnNewMaze" class="btn">✦ New maze</button>
+      <label class="slider">
+        Speed <span id="speedLabel" class="mono">8×</span>
+        <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
+      </label>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="showFlood" checked /> Flood values</label>
+      <label><input type="checkbox" id="showTruth" checked /> True (unknown) maze</label>
+      <label><input type="checkbox" id="showSensors" checked /> Sensor beams</label>
+      <label><input type="checkbox" id="showTrail" checked /> Trail</label>
+      <label title="Uncheck to reproduce the physical Grizzly, whose MPU is mounted so the gz yaw channel freezes: the motion module then leaves gyroAlive = false and runStraight() drives on the encoder equaliser + side-wall trim only.">
+        <input type="checkbox" id="gyroAlive" checked /> MPU yaw loop (gyroAlive)</label>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>cells explored</span><b id="stCells">0 / 256</b></div>
+      <div class="stat"><span>walls learned</span><b id="stWalls">0%</b></div>
+      <div class="stat"><span>moves made</span><b id="stMoves">0</b></div>
+      <div class="stat"><span>distance driven</span><b id="stDist">0.00 m</b></div>
+      <div class="stat"><span>turns</span><b id="stTurns">0</b></div>
+      <div class="stat"><span>aborts / bumps</span><b id="stAborts">0</b></div>
+    </div>
+  </section>
+
+  <!-- ======================= RIGHT: PIPELINE + TELEMETRY ================= -->
+  <section class="side">
+
+    <div class="panel">
+      <div class="panel-head"><h2>Live module pipeline</h2><span class="hint">highlighted = executing now</span></div>
+      <div id="pipeline" class="pipeline"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Telemetry (mirrors the serial monitor status line)</h2></div>
+      <div id="tel" class="telemetry"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Event log</h2><button id="btnClearLog" class="mini">clear</button></div>
+      <div id="log" class="log"></div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ======================= MODULE REFERENCE ============================= -->
+<section class="panel wide">
+  <div class="panel-head"><h2>Source-module map — what each file contributes to the run</h2></div>
+  <div class="modtable">
+    <div class="modrow head">
+      <span>File</span><span>Role in the run</span><span>Talks to</span>
+    </div>
+    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
+    <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
+    <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
+    <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
+    <div class="modrow"><span class="mono">floodfill module</span><span>Maze memory + BFS flood fill. Reads walls, picks the next cell, decides turn direction, saves map to EEPROM.</span><span class="mono">VL6180, motion, distance</span></div>
+    <div class="modrow"><span class="mono">motion module</span><span>Gyro-closed pivots <code>turnLeft90 / turnRight90 / turn180PivotLeft</code> with calibrated dead-gyro time fallback.</span><span class="mono">mpu6050, MotorControl</span></div>
+    <div class="modrow"><span class="mono">distance module</span><span><code>runStraight()</code>: soft-start ramp + P/I yaw loop + encoder wheel matching + side-wall centring trim → wheel PWM.</span><span class="mono">mpu6050, Encoder, MotorControl, VL6180</span></div>
+    <div class="modrow"><span class="mono">MotorControl module</span><span>TB6612FNG H-bridge driver: signed PWM → direction pins + PWM, plus active brake.</span><span class="mono">motion, distance → wheels</span></div>
+  </div>
+  <p class="note">
+    <b>Adaptations for 16&times;16 (all shown in the source comments).</b>
+    Cell pitch 168&nbsp;mm &rarr; 180&nbsp;mm and goal = the four centre cells (7,7)(7,8)(8,7)(8,8);
+    lone-wall standoff 50&nbsp;mm &rarr; 84&nbsp;mm (half corridor);
+    side-wall threshold 90&nbsp;mm &rarr; 120&nbsp;mm (a centred car reads 84&nbsp;mm, so 90&nbsp;mm cannot absorb a
+    post-turn offset, and an open side always reads "no echo" at 264&nbsp;mm);
+    turn stop tolerance 5&deg; &rarr; 2&deg;;
+    wall-trim clamp 40&nbsp;PWM &rarr; 8&nbsp;PWM (40&nbsp;PWM slews this chassis ~100&deg;/s and over-rotates a cell);
+    front-abort disarm 60&nbsp;mm &rarr; 100&nbsp;mm;
+    90&deg; turns drive both wheels (centre pivot) instead of the firmware's single-wheel pivot, which swings the
+    chassis ~45&nbsp;mm off the corridor every turn;
+    phase watchdog 90&nbsp;s &rarr; 600&nbsp;s (a 256-cell sweep takes ~9&nbsp;min of simulated time);
+    <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
+    each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
+  </p>
+</section>
+
+<script src="js/maze.js"></script>
+<script src="js/modules.js"></script>
+<script src="js/solver.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
