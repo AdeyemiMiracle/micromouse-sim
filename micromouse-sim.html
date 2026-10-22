@@ -111,6 +111,11 @@ canvas#mazeCanvas {
 .mini { background: none; border: 1px solid var(--line); color: var(--dim); border-radius: 6px; font-size: 11px; padding: 2px 8px; cursor: pointer; }
 .slider { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
 .slider input { width: 120px; }
+.slider select {
+  background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 8px; font-size: 12px; cursor: pointer; max-width: 320px;
+}
+.slider select:hover { border-color: #3d5d85; background: #1b2c47; }
 
 .toggles { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--dim); }
 .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
@@ -207,6 +212,9 @@ canvas#mazeCanvas {
     <div class="phase-row small">
       <span>Action</span><span id="actionName" class="mono">–</span>
     </div>
+    <div class="phase-row small">
+      <span>Strategy</span><span id="strategyLabel" class="mono">goal-first</span>
+    </div>
   </div>
 </header>
 
@@ -243,6 +251,13 @@ canvas#mazeCanvas {
         Speed <span id="speedLabel" class="mono">8×</span>
         <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
       </label>
+      <label class="slider" title="Goal-first (reach goal, immediate optimisation): explore only until the car reaches a centre cell, then plan and sprint on the partial map. Full-map: sweep every reachable cell first, then return and sprint.">
+        Strategy
+        <select id="strategySel">
+          <option value="GOAL_FIRST" selected>Goal-first — sprint on the partial map</option>
+          <option value="FULL_MAP">Full map — sweep all cells first</option>
+        </select>
+      </label>
     </div>
 
     <div class="toggles">
@@ -261,6 +276,8 @@ canvas#mazeCanvas {
       <div class="stat"><span>distance driven</span><b id="stDist">0.00 m</b></div>
       <div class="stat"><span>turns</span><b id="stTurns">0</b></div>
       <div class="stat"><span>aborts / bumps</span><b id="stAborts">0</b></div>
+      <div class="stat"><span>explored before sprint</span><b id="stBefore">–</b></div>
+      <div class="stat"><span>sprint moves / optimal</span><b id="stSprint">–</b></div>
     </div>
   </section>
 
@@ -292,7 +309,7 @@ canvas#mazeCanvas {
     <div class="modrow head">
       <span>File</span><span>Role in the run</span><span>Talks to</span>
     </div>
-    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
+    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore (goal-first <em>or</em> full-map) → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
     <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
     <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
     <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
@@ -316,9 +333,20 @@ canvas#mazeCanvas {
     <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
     each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
   </p>
+  <p class="note">
+    <b>Two run strategies (selectable in the controls).</b>
+    <b>Full-map exploration</b> sweeps every reachable cell, returns to the start cell and then sprints &mdash; the slowest
+    option, but the sprint is planned from a complete map, so its route is the true shortest path.
+    <b>Goal-first (reach goal, immediate optimisation)</b> is the legal shortcut used by many teams: the car never maps the
+    whole maze. It explores &mdash; flooding straight at the centre and treating unknown cells as open &mdash; until it
+    physically stands in a goal cell, then stops exploring immediately and plans the sprint from the partial map. It trades
+    a much shorter run for a route that is optimal only <i>for what is known</i>, so it can be a few cells longer than the
+    true optimum. The stats panel shows both: <i>explored before sprint</i> and <i>sprint moves / optimal</i>.
+  </p>
 </section>
 
 <script>
+/* ===== js/maze.js ===== */
 /* ============================================================================
    maze.js — 16x16 maze model, wall geometry and VL6180 ray-cast sensor physics
    ----------------------------------------------------------------------------
@@ -513,8 +541,7 @@ function resolveCollision(px, py, nx, ny, rb, rects) {
 }
 
 
-/* ------------------------------------------------------------------ */
-
+/* ===== js/modules.js ===== */
 /* ============================================================================
    modules.js — JavaScript twins of the Grizzly firmware modules
    ----------------------------------------------------------------------------
@@ -884,8 +911,7 @@ class Robot {
 
  
 
-/* ------------------------------------------------------------------ */
-
+/* ===== js/solver.js ===== */
 /* ============================================================================
    solver.js — floodfill module (map + BFS solver) and the main.ino supervisor
    ----------------------------------------------------------------------------
@@ -902,14 +928,46 @@ class Robot {
 const CELLS = MAZE_N * MAZE_N;
 const GOAL_CELLS = [idx(7, 7), idx(7, 8), idx(8, 7), idx(8, 8)];
 
+/* --------------------------- run strategy -----------------------------------
+   Two legal micromouse strategies. Both finish with a speed run from the start
+   cell to the centre; they differ only in how much of the maze is mapped first.
+
+   FULL_MAP    sweep every reachable cell, then return to start and sprint.
+               Slowest, but the sprint is computed from a complete map, so the
+               route is the true shortest path.
+
+   GOAL_FIRST  "reach goal, immediate optimisation": the mouse stops exploring
+               the moment it physically stands in a goal cell, then plans and
+               runs the sprint on the partial map it has. Much shorter run; the
+               route is optimal *for what is known*, so it can be a few cells
+               longer than the true shortest path.                            */
+let STRATEGY = 'GOAL_FIRST';
+const STRATEGY_NAME = { GOAL_FIRST: 'goal-first (immediate optimisation)', FULL_MAP: 'full-map exploration' };
+function setStrategy(s) { STRATEGY = (s === 'FULL_MAP') ? 'FULL_MAP' : 'GOAL_FIRST'; }
+
 const FF = {
   flood: [], startCell: 0, currentCell: 0, targetCell: 0,
   startDir: 0, currentDir: 0, leftDir: 0, rightDir: 0,
   cachedLv: 999, cachedRv: 999, readLeftNext: true, wallCenterTrim: 0, wallTrimSign: 1,
   frontMm: 999,
 
+  /* Provisional "do not use" edges. A move can abort without the wall being
+     written into the map (for instance when the car is rubbing a side wall and
+     the front reading is not trusted). Without this, the flood keeps proposing
+     the same blocked corridor and the run deadlocks on it. */
+  avoid: null,
+  // Edges the mouse has actually *observed*: the three sides it scans in a cell
+  // plus every corridor it has driven through. An edge that is seen and carries
+  // no wall is safe to drive; anything else is still unknown. The goal-first
+  // strategy plans its return and its sprint on seen edges only, so the sprint
+  // can never be stopped by a wall the mouse has not met yet.
+  seen: null,
+  safeOnly: false,
   begin() {
     this.flood = [];
+    this.avoid = new Uint8Array(CELLS);
+    this.seen = new Uint8Array(CELLS);
+    this.safeOnly = false;
     for (let i = 0; i < CELLS; i++) this.flood.push({ flood: 255, nb: 0, visited: 0 });
     this.startCell = 0; this.currentCell = 0; this.startDir = DIR_N;
     this.currentDir = DIR_N;
@@ -931,11 +989,34 @@ const FF = {
       const loc = q[h++];
       const cur = this.flood[loc].flood;
       for (let d = 0; d < 4; d++) {
-        if (!this.neighbourValid(loc, d)) continue;
-        if (this.wallExists(loc, d)) continue;
+        if (!this.passable(loc, d)) continue;
         const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
         if (this.flood[n].flood > cur + 1) { this.flood[n].flood = cur + 1; q.push(n); }
       }
+    }
+  },
+
+  // an edge the planner may use: inside the maze, no known wall, not provisionally
+  // blocked, and (in safe mode) actually observed by a sensor or by driving it
+  passable(loc, d) {
+    if (!this.neighbourValid(loc, d)) return false;
+    if (this.wallExists(loc, d)) return false;
+    if (this.avoid[loc] & (1 << d)) return false;
+    if (this.safeOnly && !(this.seen[loc] & (1 << d))) return false;
+    return true;
+  },
+  markSeen(loc, d) {                      // both sides, like markWall()
+    this.seen[loc] |= (1 << d);
+    if (this.neighbourValid(loc, d)) {
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      this.seen[n] |= (1 << ((d + 2) % 4));
+    }
+  },
+  markAvoid(loc, d) {                     // both sides, so the flood stays symmetric
+    this.avoid[loc] |= (1 << d);
+    if (this.neighbourValid(loc, d)) {
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      this.avoid[n] |= (1 << ((d + 2) % 4));
     }
   },
 
@@ -969,8 +1050,7 @@ const FF = {
     while (h < q.length) {
       const loc = q[h++];
       for (let d = 0; d < 4; d++) {
-        if (!this.neighbourValid(loc, d)) continue;
-        if (this.wallExists(loc, d)) continue;
+        if (!this.passable(loc, d)) continue;
         const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
         if (dist[n] !== -1) continue;
         dist[n] = dist[loc] + 1;
@@ -984,10 +1064,12 @@ const FF = {
   // ---- ff_updateTargetCell(): step down the flood gradient ---------------
   updateTargetCell() {
     const scoreOf = [0, 1, 2, 1];                        // prefer going straight
-    let best = this.currentCell, bestD = 255, bestScore = 3;
+    // Strictly downhill only: with a symmetric passability mask the flood is a
+    // consistent distance field, so a strictly lower neighbour always exists and
+    // accepting lateral/uphill steps is what makes a run oscillate A->B->A.
+    let best = this.currentCell, bestD = this.flood[this.currentCell].flood, bestScore = 3;
     for (let d = 0; d < 4; d++) {
-      if (this.wallExists(this.currentCell, d)) continue;
-      if (!this.neighbourValid(this.currentCell, d)) continue;   // maze border
+      if (!this.passable(this.currentCell, d)) continue;
       const n = this.currentCell + DIR_DR[d] * MAZE_N + DIR_DC[d];
       const nd = this.flood[n].flood;
       const score = scoreOf[(d + 4 - this.currentDir) % 4];
@@ -1065,7 +1147,13 @@ class Supervisor {
     this.speedPath = [];
     this.target = -1; this.rel = 0; this.absDir = DIR_N;
     this.phaseStart = 0;
+    this.cellsAtGoal = 0; this.timeAtGoalMs = 0;   // exploration cost before the sprint
+    this.sprintLen = 0;                            // cells in the final speed run
     this.ctx.log('MAIN', 'boot: I2C + VL6180 + MPU6050 + motors + encoders OK — flood-fill run armed');
+    this.ctx.log('MAIN', `strategy: ${STRATEGY_NAME[STRATEGY]}` +
+      (STRATEGY === 'GOAL_FIRST'
+        ? ' — explore only until the centre is reached, then optimise and sprint'
+        : ' — map every reachable cell, return to start, then sprint'));
     this.ctx.log('FF', `geometry: wheel ${WHEEL_DIAMETER_MM} mm, cell ${CELL_MM} mm -> ${STEPS_PER_CELL} steps/cell`);
   }
 
@@ -1092,6 +1180,10 @@ class Supervisor {
       },
       done() {
         const left = this.votes[0] >= 2, front = this.votes[1] >= 2, right = this.votes[2] >= 2;
+        // whatever the vote says, these three sides are now observed
+        FF.markSeen(FF.currentCell, FF.leftDir);
+        FF.markSeen(FF.currentCell, FF.currentDir);
+        FF.markSeen(FF.currentCell, FF.rightDir);
         if (left) FF.markWall(FF.currentCell, FF.leftDir);
         if (front) FF.markWall(FF.currentCell, FF.currentDir);
         if (right) FF.markWall(FF.currentCell, FF.rightDir);
@@ -1115,16 +1207,37 @@ class Supervisor {
       update() {
         ctxActive('FF', mode === 'explore'
           ? 'findNearestUnvisitedCell() + setFloodToTargets() + BFS'
-          : 'setFloodToTargets(goal) + BFS');
+          : (mode === 'start'
+            ? 'setFloodToTargets(startCell) + BFS'
+            : 'setFloodToTargets(goal) + BFS'));
         return r.t - this.t0 >= 20;
       },
       done() {
-        if (mode === 'explore') {
-          const nxt = FF.findNearestUnvisited();
-          if (nxt < 0) { sup.target = -1; return; }
-          FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
-        }
+        // goal-first plans its return and its sprint on the corridors it has
+        // actually observed, so an unknown wall cannot stop the sprint.
+        FF.safeOnly = (STRATEGY === 'GOAL_FIRST' && (mode === 'goal' || mode === 'start'));
+        const flood = () => {
+          if (mode === 'explore') {
+            const nxt = FF.findNearestUnvisited();
+            if (nxt < 0) return false;
+            FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
+          } else if (mode === 'goal' || mode === 'seek') {
+            FF.setFloodToTargets(GOAL_CELLS);
+          } else {
+            FF.setFloodToTargets([FF.startCell, FF.startCell, FF.startCell, FF.startCell]);
+          }
+          return true;
+        };
+        if (!flood()) { FF.safeOnly = false; sup.target = -1; return; }
         sup.target = FF.updateTargetCell();
+        if (sup.target === FF.currentCell && FF.safeOnly) {
+          // nothing reachable over observed corridors — fall back to the
+          // optimistic map (unknown treated as open) and take the risk
+          FF.safeOnly = false;
+          flood();
+          sup.target = FF.updateTargetCell();
+        }
+        FF.safeOnly = false;
         if (sup.target === FF.currentCell) { sup.target = -1; return; }
         sup.absDir = FF.absDirTo(sup.target);
         sup.rel = (sup.absDir + 4 - FF.currentDir) % 4;
@@ -1228,6 +1341,7 @@ class Supervisor {
     const targetSteps = Math.round(clamp(along, 0.45 * CELL_MM, 1.6 * CELL_MM) * STEPS_PER_MM);
     return {
       type: 'drive', r, target: targetSteps, start: r.t, ok: false, reason: '',
+      fromCell: FF.currentCell,
       frontStreak: 0, prevM: 999, lastFront: 0, lastSide: 0,
       update(dt) {
         const c = Encoder.counts(r);
@@ -1300,13 +1414,15 @@ class Supervisor {
   nextAction(sub) {
     if (!sub) return null;
     if (this.phase === 'EXPLORE' && sub === 'scan') {
-      if (FF.allVisited()) return this.finishExplore();
+      if (this.exploreComplete()) return this.finishExplore();
       return this.actScan();
     }
     if (sub === 'plan') {
       if (this.phase === 'RETURN' && FF.currentCell === FF.startCell) return this.finishPhase();
       if (this.phase === 'SPEED' && GOAL_CELLS.includes(FF.currentCell)) return this.finishPhase();
-      return this.actPlan(this.phase === 'EXPLORE' ? 'explore' : 'goal');
+      return this.actPlan(this.phase === 'EXPLORE'
+        ? this.exploreMode()
+        : (this.phase === 'RETURN' ? 'start' : 'goal'));
     }
     if (sub === 'turn') {
       if (this.target < 0 || this.rel === 0) return null;
@@ -1317,8 +1433,37 @@ class Supervisor {
     return null;
   }
 
+  /* Has the exploration phase done its job? FULL_MAP wants every reachable cell;
+     GOAL_FIRST is satisfied the moment the car stands in a goal cell. */
+  exploreComplete() {
+    if (STRATEGY === 'GOAL_FIRST' && GOAL_CELLS.includes(FF.currentCell)) return true;
+    return FF.allVisited();
+  }
+
+  /* What the explorer floods toward. GOAL_FIRST aims straight at the centre: the
+     flood treats unknown cells as open, so the car commits to the shortest
+     *optimistic* route and simply re-plans when a wall turns up. If the centre is
+     unreachable even optimistically, or the optimistic route keeps running into
+     walls, it falls back to ordinary nearest-unvisited sweeping. */
+  exploreMode() {
+    if (STRATEGY !== 'GOAL_FIRST') return 'explore';
+    FF.setFloodToTargets(GOAL_CELLS);
+    if (FF.flood[FF.currentCell].flood === 255) return 'explore';
+    if (this.consecFail >= 2) return 'explore';
+    return 'seek';                      // optimistic run at the centre
+  }
+
   finishExplore() {
-    this.ctx.log('FF', `explore complete: ${FF.visitedCount()} cells mapped — FF_saveMap() to EEPROM`);
+    const cells = FF.visitedCount();
+    this.cellsAtGoal = cells;
+    this.timeAtGoalMs = this.r.t;
+    if (STRATEGY === 'GOAL_FIRST' && GOAL_CELLS.includes(FF.currentCell)) {
+      this.ctx.log('MAIN', `CENTRE REACHED after ${cells}/${CELLS} cells ` +
+        `(${(cells / CELLS * 100).toFixed(0)}% of the maze) at ${(this.r.t / 1000).toFixed(1)} s — ` +
+        `exploration stopped, optimising the partial map now`);
+    } else {
+      this.ctx.log('FF', `explore complete: ${cells} cells mapped — FF_saveMap() to EEPROM`);
+    }
     this.phase = 'RETURN';
     this.sub = undefined;
     this.target = -1;
@@ -1338,7 +1483,10 @@ class Supervisor {
       FF.setFloodToTargets(GOAL_CELLS);
       return null;
     }
-    this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished`);
+    this.sprintLen = this.speedPath.length;
+    this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished ` +
+      `(sprint ${this.sprintLen} cells, ${(this.r.t / 1000).toFixed(1)} s total, ` +
+      `${STRATEGY === 'GOAL_FIRST' ? this.cellsAtGoal : FF.visitedCount()} cells explored)`);
     this.phase = 'DONE';
     MotorControl.brake(this.r);
     return null;
@@ -1386,6 +1534,7 @@ class Supervisor {
     }
     if (a.type === 'drive') {
       if (a.ok) {
+        FF.markSeen(a.fromCell, FF.currentDir);   // driven through: certainly open
         FF.currentCell = this.target;
         FF.flood[FF.currentCell].visited = 1;
         this.moves++;
@@ -1396,7 +1545,12 @@ class Supervisor {
       } else {
         this.aborts++;
         this.consecFail++;
-        this.ctx.log('FF', `move ${a.reason} — re-planning from cell ${FF.currentCell}`);
+        // Provisional block: even when the wall is not written into the map (the
+        // reading was not trusted), the planner must stop proposing this corridor,
+        // otherwise the optimistic goal-first route deadlocks on it.
+        if (a.reason !== 'TIMEOUT') FF.markAvoid(FF.currentCell, FF.currentDir);
+        this.ctx.log('FF', `move ${a.reason} — re-planning from cell ${FF.currentCell}` +
+          (a.reason === 'TIMEOUT' ? '' : ` (edge ${DIR_NAME[FF.currentDir]} marked unusable)`));
         if ((a.reason === 'FRONT_WALL' || a.reason === 'BLOCKED') && (a.abortSteps || 0) > 40) {
           this.action = this.actRecover(a.abortSteps);   // unwind to the cell centre
           return;
@@ -1423,8 +1577,7 @@ let ctxActive = function () { };
 function setActiveReporter(fn) { ctxActive = fn; }
 
 
-/* ------------------------------------------------------------------ */
-
+/* ===== js/app.js ===== */
 /* ============================================================================
    app.js — rendering, telemetry, pipeline display and the animation clock
    ========================================================================== */
@@ -1558,6 +1711,38 @@ function paintTelemetry(now) {
   document.getElementById('stDist').textContent = (robot.odometer / 1000).toFixed(2) + ' m';
   document.getElementById('stTurns').textContent = String(sup ? sup.turns : 0);
   document.getElementById('stAborts').textContent = String(sup ? sup.aborts : 0);
+
+  document.getElementById('strategyLabel').textContent =
+    STRATEGY === 'GOAL_FIRST' ? 'goal-first' : 'full-map';
+  document.getElementById('stBefore').textContent = sup && sup.cellsAtGoal
+    ? `${sup.cellsAtGoal} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s`
+    : '–';
+  const opt = optimalRouteLen();
+  document.getElementById('stSprint').textContent =
+    (sup && sup.sprintLen ? String(sup.sprintLen) : '–') + ` / opt ${opt < 0 ? '?' : opt}`;
+}
+
+/* Shortest start->centre route through the TRUE maze (BFS). Used only as a
+   yardstick in the stats panel: it shows how close a sprint planned from a
+   partial map (goal-first) gets to the unbeatable full-map route. */
+function optimalRouteLen() {
+  const dist = new Int16Array(CELLS).fill(-1);
+  const q = [0];
+  dist[0] = 0;
+  let h = 0;
+  while (h < q.length) {
+    const loc = q[h++];
+    if (GOAL_CELLS.includes(loc)) return dist[loc];
+    for (let d = 0; d < 4; d++) {
+      if (!FF.neighbourValid(loc, d)) continue;
+      if (maze.walls[loc] & (1 << d)) continue;
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      if (dist[n] !== -1) continue;
+      dist[n] = dist[loc] + 1;
+      q.push(n);
+    }
+  }
+  return -1;
 }
 
 function wallLearnPct() {
@@ -1805,6 +1990,11 @@ document.getElementById('showFlood').onchange = (e) => showFlood = e.target.chec
 document.getElementById('showTruth').onchange = (e) => showTruth = e.target.checked;
 document.getElementById('showSensors').onchange = (e) => showSensors = e.target.checked;
 document.getElementById('showTrail').onchange = (e) => showTrail = e.target.checked;
+document.getElementById('strategySel').onchange = (e) => {
+  setStrategy(e.target.value);
+  addLog('MAIN', `strategy selected: ${STRATEGY_NAME[STRATEGY]} — restarting the run`);
+  boot(false);
+};
 document.getElementById('gyroAlive').onchange = (e) => {
   GYRO_ALIVE = e.target.checked;
   robot.gyroAlive = GYRO_ALIVE;

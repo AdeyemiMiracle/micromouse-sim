@@ -131,6 +131,38 @@ function paintTelemetry(now) {
   document.getElementById('stDist').textContent = (robot.odometer / 1000).toFixed(2) + ' m';
   document.getElementById('stTurns').textContent = String(sup ? sup.turns : 0);
   document.getElementById('stAborts').textContent = String(sup ? sup.aborts : 0);
+
+  document.getElementById('strategyLabel').textContent =
+    STRATEGY === 'GOAL_FIRST' ? 'goal-first' : 'full-map';
+  document.getElementById('stBefore').textContent = sup && sup.cellsAtGoal
+    ? `${sup.cellsAtGoal} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s`
+    : '–';
+  const opt = optimalRouteLen();
+  document.getElementById('stSprint').textContent =
+    (sup && sup.sprintLen ? String(sup.sprintLen) : '–') + ` / opt ${opt < 0 ? '?' : opt}`;
+}
+
+/* Shortest start->centre route through the TRUE maze (BFS). Used only as a
+   yardstick in the stats panel: it shows how close a sprint planned from a
+   partial map (goal-first) gets to the unbeatable full-map route. */
+function optimalRouteLen() {
+  const dist = new Int16Array(CELLS).fill(-1);
+  const q = [0];
+  dist[0] = 0;
+  let h = 0;
+  while (h < q.length) {
+    const loc = q[h++];
+    if (GOAL_CELLS.includes(loc)) return dist[loc];
+    for (let d = 0; d < 4; d++) {
+      if (!FF.neighbourValid(loc, d)) continue;
+      if (maze.walls[loc] & (1 << d)) continue;
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      if (dist[n] !== -1) continue;
+      dist[n] = dist[loc] + 1;
+      q.push(n);
+    }
+  }
+  return -1;
 }
 
 function wallLearnPct() {
@@ -378,6 +410,11 @@ document.getElementById('showFlood').onchange = (e) => showFlood = e.target.chec
 document.getElementById('showTruth').onchange = (e) => showTruth = e.target.checked;
 document.getElementById('showSensors').onchange = (e) => showSensors = e.target.checked;
 document.getElementById('showTrail').onchange = (e) => showTrail = e.target.checked;
+document.getElementById('strategySel').onchange = (e) => {
+  setStrategy(e.target.value);
+  addLog('MAIN', `strategy selected: ${STRATEGY_NAME[STRATEGY]} — restarting the run`);
+  boot(false);
+};
 document.getElementById('gyroAlive').onchange = (e) => {
   GYRO_ALIVE = e.target.checked;
   robot.gyroAlive = GYRO_ALIVE;

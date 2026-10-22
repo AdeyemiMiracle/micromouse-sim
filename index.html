@@ -28,6 +28,9 @@
     <div class="phase-row small">
       <span>Action</span><span id="actionName" class="mono">–</span>
     </div>
+    <div class="phase-row small">
+      <span>Strategy</span><span id="strategyLabel" class="mono">goal-first</span>
+    </div>
   </div>
 </header>
 
@@ -64,6 +67,13 @@
         Speed <span id="speedLabel" class="mono">8×</span>
         <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
       </label>
+      <label class="slider" title="Goal-first (reach goal, immediate optimisation): explore only until the car reaches a centre cell, then plan and sprint on the partial map. Full-map: sweep every reachable cell first, then return and sprint.">
+        Strategy
+        <select id="strategySel">
+          <option value="GOAL_FIRST" selected>Goal-first — sprint on the partial map</option>
+          <option value="FULL_MAP">Full map — sweep all cells first</option>
+        </select>
+      </label>
     </div>
 
     <div class="toggles">
@@ -82,6 +92,8 @@
       <div class="stat"><span>distance driven</span><b id="stDist">0.00 m</b></div>
       <div class="stat"><span>turns</span><b id="stTurns">0</b></div>
       <div class="stat"><span>aborts / bumps</span><b id="stAborts">0</b></div>
+      <div class="stat"><span>explored before sprint</span><b id="stBefore">–</b></div>
+      <div class="stat"><span>sprint moves / optimal</span><b id="stSprint">–</b></div>
     </div>
   </section>
 
@@ -113,7 +125,7 @@
     <div class="modrow head">
       <span>File</span><span>Role in the run</span><span>Talks to</span>
     </div>
-    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
+    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore (goal-first <em>or</em> full-map) → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
     <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
     <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
     <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
@@ -136,6 +148,16 @@
     phase watchdog 90&nbsp;s &rarr; 600&nbsp;s (a 256-cell sweep takes ~9&nbsp;min of simulated time);
     <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
     each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
+  </p>
+  <p class="note">
+    <b>Two run strategies (selectable in the controls).</b>
+    <b>Full-map exploration</b> sweeps every reachable cell, returns to the start cell and then sprints &mdash; the slowest
+    option, but the sprint is planned from a complete map, so its route is the true shortest path.
+    <b>Goal-first (reach goal, immediate optimisation)</b> is the legal shortcut used by many teams: the car never maps the
+    whole maze. It explores &mdash; flooding straight at the centre and treating unknown cells as open &mdash; until it
+    physically stands in a goal cell, then stops exploring immediately and plans the sprint from the partial map. It trades
+    a much shorter run for a route that is optimal only <i>for what is known</i>, so it can be a few cells longer than the
+    true optimum. The stats panel shows both: <i>explored before sprint</i> and <i>sprint moves / optimal</i>.
   </p>
 </section>
 
