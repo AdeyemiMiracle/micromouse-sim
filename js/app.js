@@ -44,6 +44,7 @@ const ctxObj = {
 function boot(newMaze) {
   if (newMaze) maze = makeMaze();
   robot.reset(maze);
+  buildStaticLayers();
   sup = new Supervisor(robot, ctxObj);
   trailPts = [];
   lastTrailT = -1;
@@ -53,11 +54,21 @@ function boot(newMaze) {
 
 /* -------------------------------- log ------------------------------------- */
 const logEl = document.getElementById('log');
+let pendingLogNodes = [];
 function addLog(mod, msg) {
   const d = document.createElement('div');
   const t = (sup ? sup.r.t : robot.t) / 1000;
   d.innerHTML = `<span class="t">${t.toFixed(2)}s</span> <span class="m ${mod}">[${mod}]</span> ${msg}`;
-  logEl.appendChild(d);
+  pendingLogNodes.push(d);
+  if (pendingLogNodes.length > 300) pendingLogNodes.shift();
+}
+
+function flushLogs() {
+  if (!pendingLogNodes.length) return;
+  const fragment = document.createDocumentFragment();
+  for (const node of pendingLogNodes) fragment.appendChild(node);
+  pendingLogNodes = [];
+  logEl.appendChild(fragment);
   while (logEl.childElementCount > 300) logEl.removeChild(logEl.firstChild);
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -132,8 +143,7 @@ function paintTelemetry(now) {
   document.getElementById('stTurns').textContent = String(sup ? sup.turns : 0);
   document.getElementById('stAborts').textContent = String(sup ? sup.aborts : 0);
 
-  document.getElementById('strategyLabel').textContent =
-    STRATEGY === 'GOAL_FIRST' ? 'goal-first' : 'full-map';
+  document.getElementById('strategyLabel').textContent = 'reference round-trip';
   const mapped = sup ? FF.visitedCount() : 0;
   document.getElementById('stBefore').textContent = sup && sup.reachedGoal
     ? `${sup.cellsAtGoal} → ${mapped} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s to centre`
@@ -143,9 +153,8 @@ function paintTelemetry(now) {
     (sup && sup.sprintLen ? String(sup.sprintLen) : '–') + ` / opt ${opt < 0 ? '?' : opt}`;
 }
 
-/* Shortest start->centre route through the TRUE maze (BFS). Used only as a
-   yardstick in the stats panel: it shows how close a sprint planned from a
-   partial map (goal-first) gets to the unbeatable full-map route. */
+/* Shortest start-to-centre route through the true maze (BFS), shown as a
+   comparison yardstick beside the sprint planned from the explored map. */
 function optimalRouteLen() {
   const dist = new Int16Array(CELLS).fill(-1);
   const q = [0];
@@ -190,22 +199,48 @@ function wallLearnPct() {
 /* ------------------------------ drawing ----------------------------------- */
 const sx = (x) => MARGIN + (x / CELL_MM) * CELL_PX;
 const sy = (y) => canvas.height - MARGIN - (y / CELL_MM) * CELL_PX;
+let staticLayer;
+let truthLayer;
+
+function buildStaticLayers() {
+  if (!staticLayer) {
+    staticLayer = document.createElement('canvas');
+    truthLayer = document.createElement('canvas');
+  }
+  for (const layer of [staticLayer, truthLayer]) {
+    layer.width = canvas.width;
+    layer.height = canvas.height;
+  }
+
+  const base = staticLayer.getContext('2d');
+  base.fillStyle = '#0a111f';
+  base.fillRect(0, 0, canvas.width, canvas.height);
+  base.strokeStyle = '#132240';
+  base.lineWidth = 1;
+  for (let i = 0; i <= MAZE_N; i++) {
+    base.beginPath();
+    base.moveTo(MARGIN + i * CELL_PX, MARGIN);
+    base.lineTo(MARGIN + i * CELL_PX, canvas.height - MARGIN);
+    base.moveTo(MARGIN, MARGIN + i * CELL_PX);
+    base.lineTo(canvas.width - MARGIN, MARGIN + i * CELL_PX);
+    base.stroke();
+  }
+
+  const truth = truthLayer.getContext('2d');
+  truth.strokeStyle = '#2b3d59';
+  truth.lineWidth = 3;
+  truth.beginPath();
+  for (const R of robot.rects) {
+    const x0 = sx(R[0]), x1 = sx(R[2]);
+    const y0 = sy(R[3]), y1 = sy(R[1]);
+    truth.rect(x0, y0, x1 - x0, y1 - y0);
+  }
+  truth.stroke();
+}
 
 function draw() {
   const g = ctx2d;
-  g.clearRect(0, 0, canvas.width, canvas.height);
-
-  // floor + cell grid
-  g.fillStyle = '#0a111f';
-  g.fillRect(0, 0, canvas.width, canvas.height);
-  g.strokeStyle = '#132240';
-  g.lineWidth = 1;
-  for (let i = 0; i <= MAZE_N; i++) {
-    g.beginPath();
-    g.moveTo(MARGIN + i * CELL_PX, MARGIN); g.lineTo(MARGIN + i * CELL_PX, canvas.height - MARGIN);
-    g.moveTo(MARGIN, MARGIN + i * CELL_PX); g.lineTo(canvas.width - MARGIN, MARGIN + i * CELL_PX);
-    g.stroke();
-  }
+  g.drawImage(staticLayer, 0, 0);
 
   // visited cells
   g.fillStyle = 'rgba(56,189,248,0.13)';
@@ -215,33 +250,21 @@ function draw() {
     g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
   }
 
-  // goal block
+  // goal and start
   g.fillStyle = 'rgba(34,197,94,0.20)';
-  g.strokeStyle = '#22c55e';
-  g.lineWidth = 1.5;
   for (const gc of GOAL_CELLS) {
     const r = rowOf(gc), c = colOf(gc);
     g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
   }
+  g.strokeStyle = '#22c55e';
+  g.lineWidth = 1.5;
   g.strokeRect(MARGIN + 7 * CELL_PX, canvas.height - MARGIN - 9 * CELL_PX, 2 * CELL_PX, 2 * CELL_PX);
-
-  // start cell
   g.strokeStyle = 'rgba(245,158,11,0.8)';
   g.strokeRect(MARGIN + 1, canvas.height - MARGIN - CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
 
   // walls: true maze (faint) then what the mouse has learned (bright)
   const rects = robot.rects;
-  if (showTruth) {
-    g.strokeStyle = '#2b3d59';
-    g.lineWidth = 3;
-    g.beginPath();
-    for (const R of rects) {
-      const x0 = sx(R[0]), x1 = sx(R[2]);
-      const y0 = sy(R[3]), y1 = sy(R[1]);
-      g.rect(x0, y0, x1 - x0, y1 - y0);
-    }
-    g.stroke();
-  }
+  if (showTruth) g.drawImage(truthLayer, 0, 0);
   g.strokeStyle = '#7dd3fc';
   g.lineWidth = 3.5;
   g.lineCap = 'round';
@@ -345,6 +368,7 @@ function draw() {
 
 /* ------------------------------- clock ------------------------------------ */
 let lastFrame = 0;
+let lastRender = 0;
 function frame(now) {
   if (!lastFrame) lastFrame = now;
   let wallMs = now - lastFrame;
@@ -356,22 +380,26 @@ function frame(now) {
   if (running && sup && sup.phase !== 'DONE') {
     let budget = wallMs * speedMul;
     let guard = 0;
-    while (budget > 0 && guard++ < 4000) {
+    while (budget > 0 && guard++ < 120) {
       const dt = Math.min(DT_MS, budget);
       sup.step(dt);
       budget -= dt;
-      if (robot.t - lastTrailT >= 40) {
+      if (robot.t - lastTrailT >= 80) {
         lastTrailT = robot.t;
         trailPts.push({ x: robot.x, y: robot.y });
-        if (trailPts.length > 6000) trailPts.shift();
+        if (trailPts.length > 2000) trailPts.shift();
       }
       if (sup.phase === 'DONE') break;
     }
   }
 
-  draw();
-  paintPipeline();
-  paintTelemetry(now);
+  if (now - lastRender >= 1000 / 30) {
+    flushLogs();
+    draw();
+    paintPipeline();
+    paintTelemetry(now);
+    lastRender = now;
+  }
   requestAnimationFrame(frame);
 }
 
@@ -400,9 +428,9 @@ document.getElementById('btnStep').onclick = () => {
     if (robot.t - lastTrailT >= 40) { lastTrailT = robot.t; trailPts.push({ x: robot.x, y: robot.y }); }
   }
 };
-document.getElementById('btnReset').onclick = () => { boot(false); document.getElementById('log').innerHTML = ''; };
-document.getElementById('btnNewMaze').onclick = () => { boot(true); document.getElementById('log').innerHTML = ''; };
-document.getElementById('btnClearLog').onclick = () => { document.getElementById('log').innerHTML = ''; };
+document.getElementById('btnReset').onclick = () => { boot(false); pendingLogNodes = []; logEl.innerHTML = ''; };
+document.getElementById('btnNewMaze').onclick = () => { boot(true); pendingLogNodes = []; logEl.innerHTML = ''; };
+document.getElementById('btnClearLog').onclick = () => { pendingLogNodes = []; logEl.innerHTML = ''; };
 document.getElementById('speedRange').oninput = (e) => {
   speedMul = +e.target.value;
   document.getElementById('speedLabel').textContent = speedMul + '×';
@@ -411,11 +439,6 @@ document.getElementById('showFlood').onchange = (e) => showFlood = e.target.chec
 document.getElementById('showTruth').onchange = (e) => showTruth = e.target.checked;
 document.getElementById('showSensors').onchange = (e) => showSensors = e.target.checked;
 document.getElementById('showTrail').onchange = (e) => showTrail = e.target.checked;
-document.getElementById('strategySel').onchange = (e) => {
-  setStrategy(e.target.value);
-  addLog('MAIN', `strategy selected: ${STRATEGY_NAME[STRATEGY]} — restarting the run`);
-  boot(false);
-};
 document.getElementById('gyroAlive').onchange = (e) => {
   GYRO_ALIVE = e.target.checked;
   robot.gyroAlive = GYRO_ALIVE;

@@ -29,7 +29,7 @@
       <span>Action</span><span id="actionName" class="mono">–</span>
     </div>
     <div class="phase-row small">
-      <span>Strategy</span><span id="strategyLabel" class="mono">goal-first</span>
+      <span>Strategy</span><span id="strategyLabel" class="mono">reference round-trip</span>
     </div>
   </div>
 </header>
@@ -49,7 +49,7 @@
     </div>
 
     <div class="canvas-wrap">
-      <canvas id="mazeCanvas" width="720" height="720" aria-label="Micromouse maze simulation"></canvas>
+      <canvas id="mazeCanvas" width="900" height="900" aria-label="Micromouse maze simulation"></canvas>
       <div id="hud" class="hud">
         <div class="hud-row"><span>cell</span><b id="hudCell" class="mono">(0,0)</b></div>
         <div class="hud-row"><span>heading</span><b id="hudDir" class="mono">N</b></div>
@@ -66,13 +66,6 @@
       <label class="slider">
         Speed <span id="speedLabel" class="mono">8×</span>
         <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
-      </label>
-      <label class="slider" title="Goal-first (reach goal, then optimise): find the centre, keep exploring the cells that could still shorten the route, return to start by the shortest known route, then sprint. Full-map: sweep every reachable cell first, then return and sprint.">
-        Strategy
-        <select id="strategySel">
-          <option value="GOAL_FIRST" selected>Goal-first — explore around the goal, then sprint</option>
-          <option value="FULL_MAP">Full map — sweep all cells first</option>
-        </select>
       </label>
     </div>
 
@@ -117,54 +110,6 @@
 
   </section>
 </main>
-
-<!-- ======================= MODULE REFERENCE ============================= -->
-<section class="panel wide">
-  <div class="panel-head"><h2>Source-module map — what each file contributes to the run</h2></div>
-  <div class="modtable">
-    <div class="modrow head">
-      <span>File</span><span>Role in the run</span><span>Talks to</span>
-    </div>
-    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore (goal-first <em>or</em> full-map) → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
-    <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
-    <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
-    <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
-    <div class="modrow"><span class="mono">floodfill module</span><span>Maze memory + BFS flood fill. Reads walls, picks the next cell, decides turn direction, saves map to EEPROM.</span><span class="mono">VL6180, motion, distance</span></div>
-    <div class="modrow"><span class="mono">motion module</span><span>Gyro-closed pivots <code>turnLeft90 / turnRight90 / turn180PivotLeft</code> with calibrated dead-gyro time fallback.</span><span class="mono">mpu6050, MotorControl</span></div>
-    <div class="modrow"><span class="mono">distance module</span><span><code>runStraight()</code>: soft-start ramp + P/I yaw loop + encoder wheel matching + side-wall centring trim → wheel PWM.</span><span class="mono">mpu6050, Encoder, MotorControl, VL6180</span></div>
-    <div class="modrow"><span class="mono">MotorControl module</span><span>TB6612FNG H-bridge driver: signed PWM → direction pins + PWM, plus active brake.</span><span class="mono">motion, distance → wheels</span></div>
-  </div>
-  <p class="note">
-    <b>Adaptations for 16&times;16 (all shown in the source comments).</b>
-    Cell pitch 168&nbsp;mm &rarr; 180&nbsp;mm and goal = the four centre cells (7,7)(7,8)(8,7)(8,8);
-    lone-wall standoff 50&nbsp;mm &rarr; 84&nbsp;mm (half corridor);
-    side-wall threshold 90&nbsp;mm &rarr; 120&nbsp;mm (a centred car reads 84&nbsp;mm, so 90&nbsp;mm cannot absorb a
-    post-turn offset, and an open side always reads "no echo" at 264&nbsp;mm);
-    turn stop tolerance 5&deg; &rarr; 2&deg;;
-    wall-trim clamp 40&nbsp;PWM &rarr; 8&nbsp;PWM (40&nbsp;PWM slews this chassis ~100&deg;/s and over-rotates a cell);
-    front-abort disarm 60&nbsp;mm &rarr; 100&nbsp;mm;
-    90&deg; turns drive both wheels (centre pivot) instead of the firmware's single-wheel pivot, which swings the
-    chassis ~45&nbsp;mm off the corridor every turn;
-    phase watchdog 90&nbsp;s &rarr; 600&nbsp;s (a 256-cell sweep takes ~9&nbsp;min of simulated time);
-    <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
-    each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
-  </p>
-  <p class="note">
-    <b>Two run strategies (selectable in the controls).</b>
-    <b>Full-map exploration</b> sweeps every reachable cell, returns to the start cell and then sprints &mdash; the slowest
-    option, but the sprint is planned from a complete map, so its route is the true shortest path.
-    <b>Goal-first (reach goal, then optimise)</b> is the shortcut used by many teams: the car does not map the whole maze.
-    It first drives at the centre, flooding optimistically (unknown cells treated as open) and re-planning whenever a wall
-    turns up. Reaching the centre does <i>not</i> end the exploration &mdash; the corridors it came in on are rarely the
-    fastest ones &mdash; so it keeps sweeping the unexplored cells that could still shorten the route, starting with the
-    goal's own surroundings and working outward, and stops only when no unknown cell can beat the route it already knows
-    (the optimistic <code>d(start,r) + d(r,goal)</code> test, capped at 120 extra cells). Only then does it return to the
-    start cell, by the shortest route in its &mdash; by now much richer &mdash; map, which is usually a
-    <i>different</i> route from the way in, and finally sprint the best route it knows. The route is optimal only
-    <i>for what is known</i>, so it can be a few cells longer than the true optimum. The stats panel shows both:
-    <i>cells explored (centre &rarr; sprint)</i> and <i>sprint moves / optimal</i>.
-  </p>
-</section>
 
 <script src="js/maze.js"></script>
 <script src="js/modules.js"></script>

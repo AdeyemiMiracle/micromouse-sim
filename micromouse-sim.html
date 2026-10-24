@@ -188,6 +188,152 @@ canvas#mazeCanvas {
 .note { color: var(--dim); font-size: 12px; margin: 12px 2px 0; }
 @media (max-width: 900px) { .modrow { grid-template-columns: 1fr; } }
 
+html, body { width: 100%; height: 100%; min-height: 0; }
+html { overflow: hidden; }
+body {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+  padding: clamp(8px, 1.2vh, 16px) clamp(8px, 1.2vw, 18px);
+}
+.topbar { min-width: 0; flex-wrap: nowrap; gap: 12px; margin: 0; }
+.brand { min-width: 0; }
+.brand > div { min-width: 0; }
+.topbar .sub { font-size: clamp(9px, .8vw, 12px); }
+.phasebox { flex: 0 0 220px; min-width: 0; padding: 8px 10px; }
+.layout {
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, .8fr);
+  gap: clamp(8px, 1vw, 14px);
+  align-items: stretch;
+}
+.maze-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+}
+.maze-panel .panel-head { margin: 0; }
+.canvas-wrap { min-height: 0; align-items: center; overflow: hidden; }
+canvas#mazeCanvas {
+  width: min(100%, calc(100dvh - 300px), 900px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 900px;
+  max-height: none;
+  object-fit: contain;
+}
+.controls, .toggles, .stats { min-width: 0; margin-top: 0; }
+.controls { gap: 6px; }
+.btn { padding: 6px 8px; font-size: 11px; }
+.toggles { gap: 4px 10px; font-size: 10px; }
+.stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.stat { min-width: 0; padding: 3px 5px; }
+.stat span { font-size: 7px; line-height: 1.1; }
+.stat b { font-size: 10px; }
+.side {
+  display: grid;
+  grid-template-rows: minmax(0, 1.1fr) auto minmax(0, .85fr);
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+}
+.side > .panel { min-width: 0; min-height: 0; padding: 9px; }
+.side > .panel:first-child, .side > .panel:last-child {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.side > .panel:last-child { overflow: hidden; }
+.side .panel-head { margin-bottom: 6px; }
+.side .panel-head h2 { font-size: 10px; }
+.pipeline { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.parrow { display: none; }
+.pcard { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 5px; padding: 5px; }
+.pcard .pname, .pcard .pmsg { min-width: 0; font-size: 9px; overflow-wrap: anywhere; }
+.pcard .pmsg { min-height: 0; }
+.telemetry { gap: 2px 8px; font-size: 9px; }
+.tel-row { min-width: 0; gap: 4px; }
+.tel-row span, .tel-row b { overflow-wrap: anywhere; }
+.log { height: auto; min-height: 0; }
+.pipeline, .telemetry { min-height: 0; overflow: auto; }
+
+@media (max-width: 700px) {
+  body { gap: 6px; padding: 6px; }
+  .topbar { gap: 6px; }
+  .brand { gap: 8px; }
+  .brand .dot { flex: 0 0 8px; width: 8px; height: 8px; margin-top: 5px; }
+  .topbar h1 { font-size: clamp(11px, 3.4vw, 17px); }
+  .topbar .sub { font-size: 8px; line-height: 1.2; }
+  .phasebox { flex-basis: 145px; padding: 5px 6px; }
+  .phase-row { gap: 4px; }
+  .phase-row.small { font-size: 9px; margin-top: 2px; }
+  .phase-label { font-size: 8px; }
+  .phase-badge { font-size: 9px; padding: 2px 6px; }
+  .layout { grid-template-columns: minmax(0, 1.45fr) minmax(140px, .75fr); gap: 5px; }
+  .maze-panel { gap: 5px; padding: 6px; }
+  .panel-head h2 { font-size: 9px; }
+  .legend-inline { gap: 3px; font-size: 7px; }
+  .key { width: 7px; height: 7px; margin-right: 1px; }
+  .controls { gap: 3px; }
+  .btn { padding: 4px; font-size: 8px; }
+  .slider { gap: 3px; font-size: 8px; }
+  .slider input { width: 54px; }
+  .toggles { gap: 2px 4px; font-size: 7px; }
+  .toggles label { gap: 2px; }
+  .toggles input { margin: 0; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .stat { padding: 3px; }
+  .stat span { font-size: 6px; }
+  .stat b { font-size: 8px; }
+  .side { grid-template-rows: minmax(0, 1fr) auto minmax(70px, .7fr); gap: 5px; }
+  .side > .panel { padding: 5px; }
+  .side .panel-head h2 { font-size: 8px; }
+  .hint { font-size: 7px; }
+  .pipeline { grid-template-columns: 1fr; gap: 2px; }
+  .pcard { grid-template-columns: 1fr 1.1fr; gap: 2px; padding: 3px; }
+  .pcard .pname, .pcard .pmsg { font-size: 7px; }
+  .telemetry { grid-template-columns: 1fr; font-size: 7px; }
+  .log { padding: 4px; font-size: 7px; line-height: 1.25; }
+}
+
+@media (max-height: 650px) {
+  body { gap: 5px; padding-top: 5px; padding-bottom: 5px; }
+  .topbar h1 { font-size: 15px; }
+  .topbar .sub { display: none; }
+  .phasebox {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px 8px;
+    padding: 4px 8px;
+  }
+  .phase-row { grid-column: 1 / -1; }
+  .phase-row.small { margin-top: 1px; }
+  .maze-panel { gap: 4px; padding: 6px; }
+  .controls { flex-wrap: nowrap; gap: 3px; }
+  .btn { padding: 4px 6px; }
+  .toggles { flex-wrap: nowrap; gap: 2px 6px; }
+  .toggles label { white-space: nowrap; }
+  .side { gap: 4px; }
+  .side { grid-template-rows: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, .75fr); }
+  .side > .panel { padding: 6px; }
+  .pipeline { gap: 2px; }
+  .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pcard { padding: 3px 5px; }
+  .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .log { font-size: 9px; }
+}
+
+@media (max-height: 650px) and (max-width: 700px) {
+  .controls, .toggles { flex-wrap: wrap; }
+  .toggles label { white-space: normal; }
+}
+
 </style>
 </head>
 <body>
@@ -213,14 +359,13 @@ canvas#mazeCanvas {
       <span>Action</span><span id="actionName" class="mono">–</span>
     </div>
     <div class="phase-row small">
-      <span>Strategy</span><span id="strategyLabel" class="mono">goal-first</span>
+      <span>Strategy</span><span id="strategyLabel" class="mono">reference round-trip</span>
     </div>
   </div>
 </header>
 
 <main class="layout">
 
-  <!-- ======================= LEFT: MAZE + CONTROLS ======================= -->
   <section class="panel maze-panel">
     <div class="panel-head">
       <h2>Maze view — 16 &times; 16</h2>
@@ -233,7 +378,7 @@ canvas#mazeCanvas {
     </div>
 
     <div class="canvas-wrap">
-      <canvas id="mazeCanvas" width="720" height="720" aria-label="Micromouse maze simulation"></canvas>
+      <canvas id="mazeCanvas" width="900" height="900" aria-label="Micromouse maze simulation"></canvas>
       <div id="hud" class="hud">
         <div class="hud-row"><span>cell</span><b id="hudCell" class="mono">(0,0)</b></div>
         <div class="hud-row"><span>heading</span><b id="hudDir" class="mono">N</b></div>
@@ -250,13 +395,6 @@ canvas#mazeCanvas {
       <label class="slider">
         Speed <span id="speedLabel" class="mono">8×</span>
         <input id="speedRange" type="range" min="1" max="16" step="1" value="8" />
-      </label>
-      <label class="slider" title="Goal-first (reach goal, then optimise): find the centre, keep exploring the cells that could still shorten the route, return to start by the shortest known route, then sprint. Full-map: sweep every reachable cell first, then return and sprint.">
-        Strategy
-        <select id="strategySel">
-          <option value="GOAL_FIRST" selected>Goal-first — explore around the goal, then sprint</option>
-          <option value="FULL_MAP">Full map — sweep all cells first</option>
-        </select>
       </label>
     </div>
 
@@ -281,74 +419,22 @@ canvas#mazeCanvas {
     </div>
   </section>
 
-  <!-- ======================= RIGHT: PIPELINE + TELEMETRY ================= -->
   <section class="side">
-
     <div class="panel">
       <div class="panel-head"><h2>Live module pipeline</h2><span class="hint">highlighted = executing now</span></div>
       <div id="pipeline" class="pipeline"></div>
     </div>
-
     <div class="panel">
       <div class="panel-head"><h2>Telemetry (mirrors the serial monitor status line)</h2></div>
       <div id="tel" class="telemetry"></div>
     </div>
-
     <div class="panel">
       <div class="panel-head"><h2>Event log</h2><button id="btnClearLog" class="mini">clear</button></div>
       <div id="log" class="log"></div>
     </div>
-
   </section>
-</main>
 
-<!-- ======================= MODULE REFERENCE ============================= -->
-<section class="panel wide">
-  <div class="panel-head"><h2>Source-module map — what each file contributes to the run</h2></div>
-  <div class="modtable">
-    <div class="modrow head">
-      <span>File</span><span>Role in the run</span><span>Talks to</span>
-    </div>
-    <div class="modrow"><span class="mono">main.ino</span><span>Supervisor: I2C bring-up, sensor pre-flight, then explore (goal-first <em>or</em> full-map) → return-to-start → speed-run.</span><span class="mono">floodfill, VL6180, mpu6050, MotorControl, Encoder</span></div>
-    <div class="modrow"><span class="mono">VL6180 module</span><span>3&times; time-of-flight ranging (L / F / R). 200&nbsp;mm range, 999 = no echo; non-blocking single-shot read with 10-bit range fix.</span><span class="mono">floodfill, distance</span></div>
-    <div class="modrow"><span class="mono">mpu6050 module</span><span>Gyro/accel: <code>readangle()</code>, bias calibration and the mounting-independent gravity-axis heading used to close turns.</span><span class="mono">motion, distance</span></div>
-    <div class="modrow"><span class="mono">Encoder module</span><span>Quadrature 4&times; counts (1320&nbsp;PPR) + 10&nbsp;ms timer snapshot → wheel RPM, odometry for one-cell travel.</span><span class="mono">distance, floodfill</span></div>
-    <div class="modrow"><span class="mono">floodfill module</span><span>Maze memory + BFS flood fill. Reads walls, picks the next cell, decides turn direction, saves map to EEPROM.</span><span class="mono">VL6180, motion, distance</span></div>
-    <div class="modrow"><span class="mono">motion module</span><span>Gyro-closed pivots <code>turnLeft90 / turnRight90 / turn180PivotLeft</code> with calibrated dead-gyro time fallback.</span><span class="mono">mpu6050, MotorControl</span></div>
-    <div class="modrow"><span class="mono">distance module</span><span><code>runStraight()</code>: soft-start ramp + P/I yaw loop + encoder wheel matching + side-wall centring trim → wheel PWM.</span><span class="mono">mpu6050, Encoder, MotorControl, VL6180</span></div>
-    <div class="modrow"><span class="mono">MotorControl module</span><span>TB6612FNG H-bridge driver: signed PWM → direction pins + PWM, plus active brake.</span><span class="mono">motion, distance → wheels</span></div>
-  </div>
-  <p class="note">
-    <b>Adaptations for 16&times;16 (all shown in the source comments).</b>
-    Cell pitch 168&nbsp;mm &rarr; 180&nbsp;mm and goal = the four centre cells (7,7)(7,8)(8,7)(8,8);
-    lone-wall standoff 50&nbsp;mm &rarr; 84&nbsp;mm (half corridor);
-    side-wall threshold 90&nbsp;mm &rarr; 120&nbsp;mm (a centred car reads 84&nbsp;mm, so 90&nbsp;mm cannot absorb a
-    post-turn offset, and an open side always reads "no echo" at 264&nbsp;mm);
-    turn stop tolerance 5&deg; &rarr; 2&deg;;
-    wall-trim clamp 40&nbsp;PWM &rarr; 8&nbsp;PWM (40&nbsp;PWM slews this chassis ~100&deg;/s and over-rotates a cell);
-    front-abort disarm 60&nbsp;mm &rarr; 100&nbsp;mm;
-    90&deg; turns drive both wheels (centre pivot) instead of the firmware's single-wheel pivot, which swings the
-    chassis ~45&nbsp;mm off the corridor every turn;
-    phase watchdog 90&nbsp;s &rarr; 600&nbsp;s (a 256-cell sweep takes ~9&nbsp;min of simulated time);
-    <code>ff_updateYawSetpoint()</code> (declared in the floodfill module, unused in the firmware) re-aligns the heading after
-    each segment, and an aborted segment is unwound on the encoders so the next wall read still belongs to a cell.
-  </p>
-  <p class="note">
-    <b>Two run strategies (selectable in the controls).</b>
-    <b>Full-map exploration</b> sweeps every reachable cell, returns to the start cell and then sprints &mdash; the slowest
-    option, but the sprint is planned from a complete map, so its route is the true shortest path.
-    <b>Goal-first (reach goal, then optimise)</b> is the shortcut used by many teams: the car does not map the whole maze.
-    It first drives at the centre, flooding optimistically (unknown cells treated as open) and re-planning whenever a wall
-    turns up. Reaching the centre does <i>not</i> end the exploration &mdash; the corridors it came in on are rarely the
-    fastest ones &mdash; so it keeps sweeping the unexplored cells that could still shorten the route, starting with the
-    goal's own surroundings and working outward, and stops only when no unknown cell can beat the route it already knows
-    (the optimistic <code>d(start,r) + d(r,goal)</code> test, capped at 120 extra cells). Only then does it return to the
-    start cell, by the shortest route in its &mdash; by now much richer &mdash; map, which is usually a
-    <i>different</i> route from the way in, and finally sprint the best route it knows. The route is optimal only
-    <i>for what is known</i>, so it can be a few cells longer than the true optimum. The stats panel shows both:
-    <i>cells explored (centre &rarr; sprint)</i> and <i>sprint moves / optimal</i>.
-  </p>
-</section>
+</main>
 
 <script>
 /* ===== js/maze.js ===== */
@@ -933,36 +1019,8 @@ class Robot {
 const CELLS = MAZE_N * MAZE_N;
 const GOAL_CELLS = [idx(7, 7), idx(7, 8), idx(8, 7), idx(8, 8)];
 
-/* --------------------------- run strategy -----------------------------------
-   Two legal micromouse strategies. Both end with a speed run from the start
-   cell to the centre; they differ only in how much of the maze is mapped first.
-
-   FULL_MAP    sweep every reachable cell, then return to start and sprint.
-               Slowest, but the sprint is computed from a complete map, so the
-               route is the true shortest path.
-
-   GOAL_FIRST  "reach goal, then optimise":
-                 1. drive at the centre (unknown cells optimistically open);
-                 2. on arrival keep exploring — the corridors it came in on are
-                    rarely the fastest ones — starting with the goal's own
-                    surroundings and stopping only when no unexplored cell
-                    could still shorten the route it already knows;
-                 3. return to the start cell by the shortest *known* route,
-                    which by then is usually a different one from the way in;
-                 4. sprint the best route in the map.
-               Much shorter than a full sweep; the route is optimal *for what
-               is known*, so it can be a few cells longer than the true
-               shortest path.                                                */
-let STRATEGY = 'GOAL_FIRST';
-const STRATEGY_NAME = { GOAL_FIRST: 'goal-first (reach goal, then optimise)', FULL_MAP: 'full-map exploration' };
-function setStrategy(s) { STRATEGY = (s === 'FULL_MAP') ? 'FULL_MAP' : 'GOAL_FIRST'; }
-
-// Ceiling on the post-goal sweep: it may not explore more than this many extra
-// cells, so a maze where every cell still looks promising cannot turn the run
-// into a full sweep. Measured over 16 mazes the sweep stops on its own after
-// ~25 extra cells on average, so this ceiling only ever catches the hard mazes;
-// at 180 the sprint is the true optimum in 16/16 (at 60 it is 14/16).
-const POST_GOAL_MAX_CELLS = 180;
+/* Reference flood-fill strategy: reach the centre, explore only until a safe
+   alternate return route is known, return to start, then sprint to the centre. */
 
 const FF = {
   flood: [], startCell: 0, currentCell: 0, targetCell: 0,
@@ -977,15 +1035,19 @@ const FF = {
   avoid: null,
   // Edges the mouse has actually *observed*: the three sides it scans in a cell
   // plus every corridor it has driven through. An edge that is seen and carries
-  // no wall is safe to drive; anything else is still unknown. The goal-first
-  // strategy plans its return and its sprint on seen edges only, so the sprint
+  // no wall is safe to drive; anything else is still unknown. The round-trip
+  // strategy plans its return and sprint on seen edges only, so the sprint
   // can never be stopped by a wall the mouse has not met yet.
   seen: null,
+  outboundPath: null,
+  avoidOutboundPath: false,
   safeOnly: false,
   begin() {
     this.flood = [];
     this.avoid = new Uint8Array(CELLS);
     this.seen = new Uint8Array(CELLS);
+    this.outboundPath = new Uint8Array(CELLS);
+    this.avoidOutboundPath = false;
     this.safeOnly = false;
     for (let i = 0; i < CELLS; i++) this.flood.push({ flood: 255, nb: 0, visited: 0 });
     this.startCell = 0; this.currentCell = 0; this.startDir = DIR_N;
@@ -1021,6 +1083,7 @@ const FF = {
     if (!this.neighbourValid(loc, d)) return false;
     if (this.wallExists(loc, d)) return false;
     if (this.avoid[loc] & (1 << d)) return false;
+    if (this.avoidOutboundPath && (this.outboundPath[loc] & (1 << d))) return false;
     if (this.safeOnly && !(this.seen[loc] & (1 << d))) return false;
     return true;
   },
@@ -1037,6 +1100,117 @@ const FF = {
       const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
       this.avoid[n] |= (1 << ((d + 2) % 4));
     }
+  },
+  markOutboundPath(loc, d) {
+    this.outboundPath[loc] |= (1 << d);
+    if (this.neighbourValid(loc, d)) {
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      this.outboundPath[n] |= (1 << ((d + 2) % 4));
+    }
+  },
+  isOutboundEdge(loc, d) { return !!(this.outboundPath[loc] & (1 << d)); },
+  hasAlternateReturn() {
+    const safeOnly = this.safeOnly;
+    const avoidOutboundPath = this.avoidOutboundPath;
+    this.safeOnly = true;
+    this.avoidOutboundPath = false;
+    const found = this.findAlternateReturnStep(false) >= 0;
+    this.safeOnly = safeOnly;
+    this.avoidOutboundPath = avoidOutboundPath;
+    return found;
+  },
+  findAlternateReturnTarget() {
+    const safeOnly = this.safeOnly;
+    const avoidOutboundPath = this.avoidOutboundPath;
+    this.safeOnly = false;
+    this.avoidOutboundPath = false;
+    const fromCurrent = this.alternateRouteDistances(this.currentCell, false);
+    const toStart = this.alternateRouteDistancesToStart();
+    let target = -1;
+    let nearest = Number.POSITIVE_INFINITY;
+    for (let cell = 0; cell < CELLS; cell++) {
+      if (cell === this.currentCell || this.flood[cell].visited || this.flood[cell].nb === 0x0F) continue;
+      for (let diverged = 0; diverged <= 1; diverged++) {
+        const state = cell * 2 + diverged;
+        if (fromCurrent[state] < 0 || toStart[state] < 0) continue;
+        if (fromCurrent[state] < nearest) {
+          target = cell;
+          nearest = fromCurrent[state];
+        }
+      }
+    }
+    this.safeOnly = safeOnly;
+    this.avoidOutboundPath = avoidOutboundPath;
+    return target;
+  },
+  alternateRouteDistances(fromCell, alreadyDiverged) {
+    const dist = new Int16Array(CELLS * 2).fill(-1);
+    const queue = [fromCell * 2 + (alreadyDiverged ? 1 : 0)];
+    dist[queue[0]] = 0;
+    let head = 0;
+    while (head < queue.length) {
+      const state = queue[head++];
+      const cell = Math.floor(state / 2);
+      const diverged = state % 2;
+      for (let d = 0; d < 4; d++) {
+        if (!this.passable(cell, d)) continue;
+        const next = cell + DIR_DR[d] * MAZE_N + DIR_DC[d];
+        const nextDiverged = diverged || !this.isOutboundEdge(cell, d);
+        const nextState = next * 2 + (nextDiverged ? 1 : 0);
+        if (dist[nextState] >= 0) continue;
+        dist[nextState] = dist[state] + 1;
+        queue.push(nextState);
+      }
+    }
+    return dist;
+  },
+  alternateRouteDistancesToStart() {
+    const dist = new Int16Array(CELLS * 2).fill(-1);
+    const queue = [this.startCell * 2 + 1];
+    dist[queue[0]] = 0;
+    let head = 0;
+    while (head < queue.length) {
+      const state = queue[head++];
+      const cell = Math.floor(state / 2);
+      const diverged = state % 2;
+      for (let d = 0; d < 4; d++) {
+        if (!this.neighbourValid(cell, d)) continue;
+        const previous = cell + DIR_DR[d] * MAZE_N + DIR_DC[d];
+        const edgeDir = (d + 2) % 4;
+        if (!this.passable(previous, edgeDir)) continue;
+        const outbound = this.isOutboundEdge(previous, edgeDir);
+        const addPrevious = (previousState) => {
+          if (dist[previousState] >= 0) return;
+          dist[previousState] = dist[state] + 1;
+          queue.push(previousState);
+        };
+        if (diverged) {
+          addPrevious(previous * 2 + 1);
+          if (!outbound) addPrevious(previous * 2);
+        } else if (outbound) {
+          addPrevious(previous * 2);
+        }
+      }
+    }
+    return dist;
+  },
+  findAlternateReturnStep(alreadyDiverged) {
+    const diverged = alreadyDiverged ? 1 : 0;
+    const distances = this.alternateRouteDistancesToStart();
+    const directionOrder = this.referenceDirectionOrder();
+    let bestDirection = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const d of directionOrder) {
+      if (!this.passable(this.currentCell, d)) continue;
+      const next = this.currentCell + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      const nextDiverged = diverged || !this.isOutboundEdge(this.currentCell, d);
+      const distance = distances[next * 2 + (nextDiverged ? 1 : 0)];
+      if (distance >= 0 && distance < bestDistance) {
+        bestDirection = d;
+        bestDistance = distance;
+      }
+    }
+    return bestDirection;
   },
 
   neighbourValid(loc, d) {
@@ -1093,62 +1267,25 @@ const FF = {
     return L === 255 ? -1 : L;
   },
 
-  /* Post-goal explorer: which cell is still worth visiting?
-     A cell can only matter if the shortest route that *could* run
-     start -> cell -> goal — unknown cells assumed open, known walls respected —
-     is shorter than the best route the map already proves. Those cells are
-     scored by how far the car would have to drive to reach them, so the sweep
-     starts with the goal's own surroundings and works outward.
-     Returns -1 when no unexplored cell can improve the run any more. */
-  findImprovingUnvisited(bestKnown) {
-    const save = this.safeOnly;
-    this.safeOnly = false;                       // optimistic: unknown = open
-    this.setFloodToTargets([this.startCell]);
-    const dS = this.flood.map(f => f.flood);     // optimistic start -> cell
-    this.setFloodToTargets(GOAL_CELLS);
-    const dG = this.flood.map(f => f.flood);     // optimistic cell -> goal
-    this.safeOnly = save;
-
-    const dist = new Int16Array(CELLS).fill(-1);
-    const q = [this.currentCell];
-    dist[this.currentCell] = 0;
-    let best = -1, bestDrive = 1e9, bestPot = 1e9;
-    let h = 0;
-    while (h < q.length) {
-      const loc = q[h++];
-      const d = dist[loc];
-      if (best >= 0 && d > bestDrive) break;     // BFS order: nothing closer left
-      if (!this.flood[loc].visited && this.flood[loc].nb !== 0x0F &&
-          dS[loc] !== 255 && dG[loc] !== 255 && dS[loc] + dG[loc] < bestKnown) {
-        const pot = dS[loc] + dG[loc];
-        if (d < bestDrive || (d === bestDrive && pot < bestPot)) {
-          best = loc; bestDrive = d; bestPot = pot;
-        }
-      }
-      for (let dd = 0; dd < 4; dd++) {
-        if (!this.passable(loc, dd)) continue;
-        const n = loc + DIR_DR[dd] * MAZE_N + DIR_DC[dd];
-        if (dist[n] !== -1) continue;
-        dist[n] = d + 1;
-        q.push(n);
-      }
-    }
-    return best;
+  // Reference flood-fill choice order: forward, left, right, then back.
+  referenceDirectionOrder() {
+    return [
+      this.currentDir,
+      (this.currentDir + 3) % 4,
+      (this.currentDir + 1) % 4,
+      (this.currentDir + 2) % 4
+    ];
   },
-
-  // ---- ff_updateTargetCell(): step down the flood gradient ---------------
   updateTargetCell() {
-    const scoreOf = [0, 1, 2, 1];                        // prefer going straight
-    // Strictly downhill only: with a symmetric passability mask the flood is a
-    // consistent distance field, so a strictly lower neighbour always exists and
-    // accepting lateral/uphill steps is what makes a run oscillate A->B->A.
-    let best = this.currentCell, bestD = this.flood[this.currentCell].flood, bestScore = 3;
-    for (let d = 0; d < 4; d++) {
+    let best = this.currentCell;
+    let bestD = 255;
+    for (const d of this.referenceDirectionOrder()) {
       if (!this.passable(this.currentCell, d)) continue;
       const n = this.currentCell + DIR_DR[d] * MAZE_N + DIR_DC[d];
       const nd = this.flood[n].flood;
-      const score = scoreOf[(d + 4 - this.currentDir) % 4];
-      if (nd < bestD || (nd === bestD && score < bestScore)) { bestD = nd; bestScore = score; best = n; }
+      if (nd < bestD) {
+        bestD = nd; best = n;
+      }
     }
     this.targetCell = best;
     return best;
@@ -1225,14 +1362,11 @@ class Supervisor {
     this.cellsAtGoal = 0; this.timeAtGoalMs = 0;   // exploration cost before the sprint
     this.sprintLen = 0;                            // cells in the final speed run
     this.reachedGoal = false;                      // first contact with the centre
-    this.postGoalCells = 0;                        // cells mapped after that contact
-    this.exploreTarget = -1;                       // post-goal cell being worked on
+    this.useAlternateReturn = false;
+    this.returnDiverged = false;
     this.ctx.log('MAIN', 'boot: I2C + VL6180 + MPU6050 + motors + encoders OK — flood-fill run armed');
-    this.ctx.log('MAIN', `strategy: ${STRATEGY_NAME[STRATEGY]}` +
-      (STRATEGY === 'GOAL_FIRST'
-        ? ' — reach the centre, keep exploring while a better route is possible, ' +
-          'return to start by the best known route, then sprint'
-        : ' — map every reachable cell, return to start, then sprint'));
+    this.ctx.log('MAIN', 'strategy: reference round-trip — reach the centre, explore for a safe return route that differs from the outbound route, ' +
+      'return to start, then sprint the shortest known route');
     this.ctx.log('FF', `geometry: wheel ${WHEEL_DIAMETER_MM} mm, cell ${CELL_MM} mm -> ${STEPS_PER_CELL} steps/cell`);
   }
 
@@ -1286,25 +1420,26 @@ class Supervisor {
       update() {
         ctxActive('FF', mode === 'explore'
           ? 'findNearestUnvisitedCell() + setFloodToTargets() + BFS'
-          : (mode === 'post'
-            ? 'findImprovingUnvisited() + setFloodToTargets() + BFS'
+          : (mode === 'alternate'
+            ? 'findAlternateReturnTarget() + setFloodToTargets() + BFS'
             : (mode === 'start'
               ? 'setFloodToTargets(startCell) + BFS'
               : 'setFloodToTargets(goal) + BFS')));
         return r.t - this.t0 >= 20;
       },
       done() {
-        // goal-first plans its return and its sprint on the corridors it has
-        // actually observed, so an unknown wall cannot stop the sprint.
-        FF.safeOnly = (STRATEGY === 'GOAL_FIRST' && (mode === 'goal' || mode === 'start'));
+        // Return and sprint use observed corridors so unknown walls cannot stop them.
+        FF.safeOnly = mode === 'goal' || mode === 'start';
+        FF.avoidOutboundPath = false;
         const flood = () => {
           if (mode === 'explore') {
             const nxt = FF.findNearestUnvisited();
             if (nxt < 0) return false;
             FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
-          } else if (mode === 'post') {
-            if (sup.exploreTarget < 0) return false;
-            FF.setFloodToTargets([sup.exploreTarget, sup.exploreTarget, sup.exploreTarget, sup.exploreTarget]);
+          } else if (mode === 'alternate') {
+            const target = FF.findAlternateReturnTarget();
+            if (target < 0) return false;
+            FF.setFloodToTargets([target, target, target, target]);
           } else if (mode === 'goal' || mode === 'seek') {
             FF.setFloodToTargets(GOAL_CELLS);
           } else {
@@ -1312,8 +1447,19 @@ class Supervisor {
           }
           return true;
         };
-        if (!flood()) { FF.safeOnly = false; sup.target = -1; return; }
-        sup.target = FF.updateTargetCell();
+        if (!flood()) {
+          FF.safeOnly = false;
+          sup.target = -1;
+          return;
+        }
+        if (mode === 'start' && sup.useAlternateReturn) {
+          const direction = FF.findAlternateReturnStep(sup.returnDiverged);
+          sup.target = direction < 0
+            ? FF.updateTargetCell()
+            : FF.currentCell + DIR_DR[direction] * MAZE_N + DIR_DC[direction];
+        } else {
+          sup.target = FF.updateTargetCell();
+        }
         if (sup.target === FF.currentCell && FF.safeOnly) {
           // nothing reachable over observed corridors — fall back to the
           // optimistic map (unknown treated as open) and take the risk
@@ -1498,7 +1644,6 @@ class Supervisor {
   nextAction(sub) {
     if (!sub) return null;
     if (this.phase === 'EXPLORE' && sub === 'scan') {
-      if (this.exploreComplete()) return this.finishExplore();
       return this.actScan();
     }
     if (sub === 'plan') {
@@ -1517,45 +1662,28 @@ class Supervisor {
     return null;
   }
 
-  /* Has the exploration phase done its job? FULL_MAP wants every reachable cell.
-     GOAL_FIRST is done once the car has stood in the centre *and* no unexplored
-     cell could still shorten the route it knows (or the post-goal budget ran
-     out). Until the centre has been touched it can never be complete, so a maze
-     where the goal turns out to be unreachable degrades to a full sweep. */
+  /* Stop once a different safe route home is known or no candidate remains. */
   exploreComplete() {
-    if (STRATEGY !== 'GOAL_FIRST') return FF.allVisited();
     if (!this.reachedGoal) return false;
-    if (FF.allVisited()) return true;
-    if (this.postGoalCells >= POST_GOAL_MAX_CELLS) return true;
-    const best = FF.knownRouteLen();
-    if (best < 0) return false;                  // start and goal not yet connected
-    return FF.findImprovingUnvisited(best) < 0;  // nothing left that could help
+    return FF.hasAlternateReturn() || FF.findAlternateReturnTarget() < 0;
   }
 
   /* What the explorer floods toward.
        seek  — before the centre is found: straight at it, unknown cells treated
                as open, re-planning whenever a wall turns up.
-       post  — after the centre is found: the nearest unexplored cell that could
-               still produce a faster route (see findImprovingUnvisited()).
-       explore — plain nearest-unvisited sweeping, used by FULL_MAP and as the
-               fallback when the optimistic route keeps hitting walls. */
+       alternate — visit the nearest unexplored cell on a possible route home
+                   that differs from the outbound path. */
   exploreMode() {
-    if (STRATEGY !== 'GOAL_FIRST') return 'explore';
     if (!this.reachedGoal) {
       FF.setFloodToTargets(GOAL_CELLS);
       if (FF.flood[FF.currentCell].flood === 255) return 'explore';
       if (this.consecFail >= 2) return 'explore';
       return 'seek';                      // optimistic run at the centre
     }
-    if (this.consecFail >= 2) return 'explore';
-    const best = FF.knownRouteLen();
-    this.exploreTarget = best < 0 ? FF.findNearestUnvisited() : FF.findImprovingUnvisited(best);
-    return 'post';
+    return 'alternate';
   }
 
-  /* First contact with the centre. For goal-first this is *not* the end of the
-     exploration: the corridors the car drove in on are usually not the fastest
-     ones, so it keeps sweeping the cells that could still shorten the route. */
+  /* First contact with the centre starts the alternate-return exploration. */
   markGoalContact() {
     this.reachedGoal = true;
     this.cellsAtGoal = FF.visitedCount();
@@ -1564,25 +1692,30 @@ class Supervisor {
     this.ctx.log('MAIN', `CENTRE REACHED in cell ${FF.currentCell} — ${this.cellsAtGoal}/${CELLS} cells ` +
       `(${(this.cellsAtGoal / CELLS * 100).toFixed(0)}% of the maze) at ${(this.r.t / 1000).toFixed(1)} s, ` +
       `best known route ${best} cells` +
-      (STRATEGY === 'GOAL_FIRST' ? ' — still exploring for a faster one' : ''));
+      ' — exploring for an alternate return route');
   }
 
   finishExplore() {
     const cells = FF.visitedCount();
-    if (STRATEGY === 'GOAL_FIRST' && this.reachedGoal) {
-      const best = FF.knownRouteLen();
-      this.ctx.log('MAIN', `map optimised: no unexplored cell can beat the ${best}-cell route ` +
-        `— ${cells}/${CELLS} cells mapped (${this.cellsAtGoal} of them before the centre was reached, ` +
-        `${this.postGoalCells} while exploring around it)`);
+    this.useAlternateReturn = this.reachedGoal && FF.hasAlternateReturn();
+    this.returnDiverged = false;
+    if (this.reachedGoal) {
+      this.ctx.log('MAIN', `alternate-return exploration complete — ${cells}/${CELLS} cells explored; ` +
+        (this.useAlternateReturn
+          ? 'returning by the shortest known route that differs from the outbound route'
+          : 'no different known route is available; returning by the shortest known route'));
     } else {
       this.ctx.log('FF', `explore complete: ${cells} cells mapped — FF_saveMap() to EEPROM`);
     }
     this.phase = 'RETURN';
     this.sub = undefined;
     this.target = -1;
+    FF.avoidOutboundPath = false;
+    FF.safeOnly = true;
     FF.setFloodToTargets([FF.startCell, FF.startCell, FF.startCell, FF.startCell]);
     this.ctx.log('MAIN', 'phase 2/3: FF_returnToStart() — driving back to the start cell ' +
-      'by the shortest route the map knows (not necessarily the way in)');
+      (this.useAlternateReturn ? 'by a different route' : 'by the shortest known route'));
+    FF.safeOnly = false;
     this.phaseStart = this.r.t;
     return null;
   }
@@ -1594,14 +1727,14 @@ class Supervisor {
       this.sub = undefined;
       this.target = -1;
       this.phaseStart = this.r.t;
+      FF.avoidOutboundPath = false;
       FF.setFloodToTargets(GOAL_CELLS);
       return null;
     }
     this.sprintLen = this.speedPath.length;
     this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished ` +
       `(sprint ${this.sprintLen} cells, ${(this.r.t / 1000).toFixed(1)} s total, ` +
-      `${FF.visitedCount()} cells explored` +
-      (STRATEGY === 'GOAL_FIRST' ? ` — ${this.cellsAtGoal} before the centre, ${this.postGoalCells} after` : ''));
+      `${FF.visitedCount()} cells explored — ${this.cellsAtGoal} at first centre contact)`);
     this.phase = 'DONE';
     MotorControl.brake(this.r);
     return null;
@@ -1638,6 +1771,11 @@ class Supervisor {
       this.phase = 'DONE';
       return;
     }
+    if (a.type === 'scan' && this.phase === 'EXPLORE' && this.exploreComplete()) {
+      this.finishExplore();
+      this.sub = undefined;
+      return;
+    }
     if (a.type === 'plan' && this.target < 0) {
       if (this.phase === 'EXPLORE') this.finishExplore();
       else {
@@ -1649,11 +1787,12 @@ class Supervisor {
     }
     if (a.type === 'drive') {
       if (a.ok) {
+        if (this.phase === 'EXPLORE' && !this.reachedGoal) FF.markOutboundPath(a.fromCell, FF.currentDir);
+        if (this.phase === 'RETURN' && !FF.isOutboundEdge(a.fromCell, FF.currentDir)) this.returnDiverged = true;
         FF.markSeen(a.fromCell, FF.currentDir);   // driven through: certainly open
         FF.currentCell = this.target;
         if (!FF.flood[FF.currentCell].visited) {
           FF.flood[FF.currentCell].visited = 1;
-          if (this.reachedGoal) this.postGoalCells++;
         }
         if (!this.reachedGoal && GOAL_CELLS.includes(FF.currentCell)) this.markGoalContact();
         this.moves++;
@@ -1665,8 +1804,7 @@ class Supervisor {
         this.aborts++;
         this.consecFail++;
         // Provisional block: even when the wall is not written into the map (the
-        // reading was not trusted), the planner must stop proposing this corridor,
-        // otherwise the optimistic goal-first route deadlocks on it.
+        // reading was not trusted), the planner must stop proposing this corridor.
         if (a.reason !== 'TIMEOUT') FF.markAvoid(FF.currentCell, FF.currentDir);
         this.ctx.log('FF', `move ${a.reason} — re-planning from cell ${FF.currentCell}` +
           (a.reason === 'TIMEOUT' ? '' : ` (edge ${DIR_NAME[FF.currentDir]} marked unusable)`));
@@ -1743,6 +1881,7 @@ const ctxObj = {
 function boot(newMaze) {
   if (newMaze) maze = makeMaze();
   robot.reset(maze);
+  buildStaticLayers();
   sup = new Supervisor(robot, ctxObj);
   trailPts = [];
   lastTrailT = -1;
@@ -1752,11 +1891,21 @@ function boot(newMaze) {
 
 /* -------------------------------- log ------------------------------------- */
 const logEl = document.getElementById('log');
+let pendingLogNodes = [];
 function addLog(mod, msg) {
   const d = document.createElement('div');
   const t = (sup ? sup.r.t : robot.t) / 1000;
   d.innerHTML = `<span class="t">${t.toFixed(2)}s</span> <span class="m ${mod}">[${mod}]</span> ${msg}`;
-  logEl.appendChild(d);
+  pendingLogNodes.push(d);
+  if (pendingLogNodes.length > 300) pendingLogNodes.shift();
+}
+
+function flushLogs() {
+  if (!pendingLogNodes.length) return;
+  const fragment = document.createDocumentFragment();
+  for (const node of pendingLogNodes) fragment.appendChild(node);
+  pendingLogNodes = [];
+  logEl.appendChild(fragment);
   while (logEl.childElementCount > 300) logEl.removeChild(logEl.firstChild);
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -1831,8 +1980,7 @@ function paintTelemetry(now) {
   document.getElementById('stTurns').textContent = String(sup ? sup.turns : 0);
   document.getElementById('stAborts').textContent = String(sup ? sup.aborts : 0);
 
-  document.getElementById('strategyLabel').textContent =
-    STRATEGY === 'GOAL_FIRST' ? 'goal-first' : 'full-map';
+  document.getElementById('strategyLabel').textContent = 'reference round-trip';
   const mapped = sup ? FF.visitedCount() : 0;
   document.getElementById('stBefore').textContent = sup && sup.reachedGoal
     ? `${sup.cellsAtGoal} → ${mapped} cells · ${(sup.timeAtGoalMs / 1000).toFixed(0)} s to centre`
@@ -1842,9 +1990,8 @@ function paintTelemetry(now) {
     (sup && sup.sprintLen ? String(sup.sprintLen) : '–') + ` / opt ${opt < 0 ? '?' : opt}`;
 }
 
-/* Shortest start->centre route through the TRUE maze (BFS). Used only as a
-   yardstick in the stats panel: it shows how close a sprint planned from a
-   partial map (goal-first) gets to the unbeatable full-map route. */
+/* Shortest start-to-centre route through the true maze (BFS), shown as a
+   comparison yardstick beside the sprint planned from the explored map. */
 function optimalRouteLen() {
   const dist = new Int16Array(CELLS).fill(-1);
   const q = [0];
@@ -1889,22 +2036,48 @@ function wallLearnPct() {
 /* ------------------------------ drawing ----------------------------------- */
 const sx = (x) => MARGIN + (x / CELL_MM) * CELL_PX;
 const sy = (y) => canvas.height - MARGIN - (y / CELL_MM) * CELL_PX;
+let staticLayer;
+let truthLayer;
+
+function buildStaticLayers() {
+  if (!staticLayer) {
+    staticLayer = document.createElement('canvas');
+    truthLayer = document.createElement('canvas');
+  }
+  for (const layer of [staticLayer, truthLayer]) {
+    layer.width = canvas.width;
+    layer.height = canvas.height;
+  }
+
+  const base = staticLayer.getContext('2d');
+  base.fillStyle = '#0a111f';
+  base.fillRect(0, 0, canvas.width, canvas.height);
+  base.strokeStyle = '#132240';
+  base.lineWidth = 1;
+  for (let i = 0; i <= MAZE_N; i++) {
+    base.beginPath();
+    base.moveTo(MARGIN + i * CELL_PX, MARGIN);
+    base.lineTo(MARGIN + i * CELL_PX, canvas.height - MARGIN);
+    base.moveTo(MARGIN, MARGIN + i * CELL_PX);
+    base.lineTo(canvas.width - MARGIN, MARGIN + i * CELL_PX);
+    base.stroke();
+  }
+
+  const truth = truthLayer.getContext('2d');
+  truth.strokeStyle = '#2b3d59';
+  truth.lineWidth = 3;
+  truth.beginPath();
+  for (const R of robot.rects) {
+    const x0 = sx(R[0]), x1 = sx(R[2]);
+    const y0 = sy(R[3]), y1 = sy(R[1]);
+    truth.rect(x0, y0, x1 - x0, y1 - y0);
+  }
+  truth.stroke();
+}
 
 function draw() {
   const g = ctx2d;
-  g.clearRect(0, 0, canvas.width, canvas.height);
-
-  // floor + cell grid
-  g.fillStyle = '#0a111f';
-  g.fillRect(0, 0, canvas.width, canvas.height);
-  g.strokeStyle = '#132240';
-  g.lineWidth = 1;
-  for (let i = 0; i <= MAZE_N; i++) {
-    g.beginPath();
-    g.moveTo(MARGIN + i * CELL_PX, MARGIN); g.lineTo(MARGIN + i * CELL_PX, canvas.height - MARGIN);
-    g.moveTo(MARGIN, MARGIN + i * CELL_PX); g.lineTo(canvas.width - MARGIN, MARGIN + i * CELL_PX);
-    g.stroke();
-  }
+  g.drawImage(staticLayer, 0, 0);
 
   // visited cells
   g.fillStyle = 'rgba(56,189,248,0.13)';
@@ -1914,33 +2087,21 @@ function draw() {
     g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
   }
 
-  // goal block
+  // goal and start
   g.fillStyle = 'rgba(34,197,94,0.20)';
-  g.strokeStyle = '#22c55e';
-  g.lineWidth = 1.5;
   for (const gc of GOAL_CELLS) {
     const r = rowOf(gc), c = colOf(gc);
     g.fillRect(MARGIN + c * CELL_PX + 1, canvas.height - MARGIN - (r + 1) * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
   }
+  g.strokeStyle = '#22c55e';
+  g.lineWidth = 1.5;
   g.strokeRect(MARGIN + 7 * CELL_PX, canvas.height - MARGIN - 9 * CELL_PX, 2 * CELL_PX, 2 * CELL_PX);
-
-  // start cell
   g.strokeStyle = 'rgba(245,158,11,0.8)';
   g.strokeRect(MARGIN + 1, canvas.height - MARGIN - CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
 
   // walls: true maze (faint) then what the mouse has learned (bright)
   const rects = robot.rects;
-  if (showTruth) {
-    g.strokeStyle = '#2b3d59';
-    g.lineWidth = 3;
-    g.beginPath();
-    for (const R of rects) {
-      const x0 = sx(R[0]), x1 = sx(R[2]);
-      const y0 = sy(R[3]), y1 = sy(R[1]);
-      g.rect(x0, y0, x1 - x0, y1 - y0);
-    }
-    g.stroke();
-  }
+  if (showTruth) g.drawImage(truthLayer, 0, 0);
   g.strokeStyle = '#7dd3fc';
   g.lineWidth = 3.5;
   g.lineCap = 'round';
@@ -2044,6 +2205,7 @@ function draw() {
 
 /* ------------------------------- clock ------------------------------------ */
 let lastFrame = 0;
+let lastRender = 0;
 function frame(now) {
   if (!lastFrame) lastFrame = now;
   let wallMs = now - lastFrame;
@@ -2055,22 +2217,26 @@ function frame(now) {
   if (running && sup && sup.phase !== 'DONE') {
     let budget = wallMs * speedMul;
     let guard = 0;
-    while (budget > 0 && guard++ < 4000) {
+    while (budget > 0 && guard++ < 120) {
       const dt = Math.min(DT_MS, budget);
       sup.step(dt);
       budget -= dt;
-      if (robot.t - lastTrailT >= 40) {
+      if (robot.t - lastTrailT >= 80) {
         lastTrailT = robot.t;
         trailPts.push({ x: robot.x, y: robot.y });
-        if (trailPts.length > 6000) trailPts.shift();
+        if (trailPts.length > 2000) trailPts.shift();
       }
       if (sup.phase === 'DONE') break;
     }
   }
 
-  draw();
-  paintPipeline();
-  paintTelemetry(now);
+  if (now - lastRender >= 1000 / 30) {
+    flushLogs();
+    draw();
+    paintPipeline();
+    paintTelemetry(now);
+    lastRender = now;
+  }
   requestAnimationFrame(frame);
 }
 
@@ -2096,12 +2262,16 @@ document.getElementById('btnStep').onclick = () => {
   let n = 0;
   while (sup.action === a0 && n++ < 40000) {
     sup.step(DT_MS);
-    if (robot.t - lastTrailT >= 40) { lastTrailT = robot.t; trailPts.push({ x: robot.x, y: robot.y }); }
+    if (robot.t - lastTrailT >= 80) {
+      lastTrailT = robot.t;
+      trailPts.push({ x: robot.x, y: robot.y });
+      if (trailPts.length > 2000) trailPts.shift();
+    }
   }
 };
-document.getElementById('btnReset').onclick = () => { boot(false); document.getElementById('log').innerHTML = ''; };
-document.getElementById('btnNewMaze').onclick = () => { boot(true); document.getElementById('log').innerHTML = ''; };
-document.getElementById('btnClearLog').onclick = () => { document.getElementById('log').innerHTML = ''; };
+document.getElementById('btnReset').onclick = () => { boot(false); pendingLogNodes = []; logEl.innerHTML = ''; };
+document.getElementById('btnNewMaze').onclick = () => { boot(true); pendingLogNodes = []; logEl.innerHTML = ''; };
+document.getElementById('btnClearLog').onclick = () => { pendingLogNodes = []; logEl.innerHTML = ''; };
 document.getElementById('speedRange').oninput = (e) => {
   speedMul = +e.target.value;
   document.getElementById('speedLabel').textContent = speedMul + '×';
@@ -2110,11 +2280,6 @@ document.getElementById('showFlood').onchange = (e) => showFlood = e.target.chec
 document.getElementById('showTruth').onchange = (e) => showTruth = e.target.checked;
 document.getElementById('showSensors').onchange = (e) => showSensors = e.target.checked;
 document.getElementById('showTrail').onchange = (e) => showTrail = e.target.checked;
-document.getElementById('strategySel').onchange = (e) => {
-  setStrategy(e.target.value);
-  addLog('MAIN', `strategy selected: ${STRATEGY_NAME[STRATEGY]} — restarting the run`);
-  boot(false);
-};
 document.getElementById('gyroAlive').onchange = (e) => {
   GYRO_ALIVE = e.target.checked;
   robot.gyroAlive = GYRO_ALIVE;

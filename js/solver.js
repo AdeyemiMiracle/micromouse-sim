@@ -9,41 +9,33 @@
      ff_goToTargetCell()            turn (motion module) + ff_moveForwardCells()
      computeWallCenteringTrim()     side-wall corridor centring
    and runFloodFillSequence(): explore -> return to start -> speed run to centre.
+
+   Strategy implemented here ("divergent round-trip"):
+     Phase 1 EXPLORE  : flood optimistically toward the centre, marking walls
+                        as they are seen, until the centre is reached. Every
+                        driven edge before the centre is recorded as the
+                        "outbound path".
+     Phase 2 EXPLORE  : keep exploring nearest-unvisited cells until the map
+                        PROVES a route back to the start that uses NO outbound
+                        edge and lies entirely over observed corridors. The
+                        exploration is capped so the whole maze is never swept:
+                        if no divergent route is found within EXPLORE_BUDGET
+                        extra cells, the search stops and the return uses the
+                        shortest known route instead.
+     Phase 3 RETURN   : drive home over the divergent route (outbound edges
+                        forbidden; relaxed only if the mouse would be stranded).
+     Phase 4 SPEED    : sprint from the start cell to the centre along the
+                        shortest path over the explored map.
    ========================================================================== */
 
 const CELLS = MAZE_N * MAZE_N;
 const GOAL_CELLS = [idx(7, 7), idx(7, 8), idx(8, 7), idx(8, 8)];
 
-/* --------------------------- run strategy -----------------------------------
-   Two legal micromouse strategies. Both end with a speed run from the start
-   cell to the centre; they differ only in how much of the maze is mapped first.
-
-   FULL_MAP    sweep every reachable cell, then return to start and sprint.
-               Slowest, but the sprint is computed from a complete map, so the
-               route is the true shortest path.
-
-   GOAL_FIRST  "reach goal, then optimise":
-                 1. drive at the centre (unknown cells optimistically open);
-                 2. on arrival keep exploring — the corridors it came in on are
-                    rarely the fastest ones — starting with the goal's own
-                    surroundings and stopping only when no unexplored cell
-                    could still shorten the route it already knows;
-                 3. return to the start cell by the shortest *known* route,
-                    which by then is usually a different one from the way in;
-                 4. sprint the best route in the map.
-               Much shorter than a full sweep; the route is optimal *for what
-               is known*, so it can be a few cells longer than the true
-               shortest path.                                                */
-let STRATEGY = 'GOAL_FIRST';
-const STRATEGY_NAME = { GOAL_FIRST: 'goal-first (reach goal, then optimise)', FULL_MAP: 'full-map exploration' };
-function setStrategy(s) { STRATEGY = (s === 'FULL_MAP') ? 'FULL_MAP' : 'GOAL_FIRST'; }
-
-// Ceiling on the post-goal sweep: it may not explore more than this many extra
-// cells, so a maze where every cell still looks promising cannot turn the run
-// into a full sweep. Measured over 16 mazes the sweep stops on its own after
-// ~25 extra cells on average, so this ceiling only ever catches the hard mazes;
-// at 180 the sprint is the true optimum in 16/16 (at 60 it is 14/16).
-const POST_GOAL_MAX_CELLS = 180;
+// Hard cap on how many extra cells may be explored while looking for a
+// divergent return route. The maze generator guarantees at least two disjoint
+// routes exist, so this cap is only ever hit in a pathological case — but it
+// ensures the run never degenerates into a full-maze sweep.
+const EXPLORE_BUDGET = 60;
 
 const FF = {
   flood: [], startCell: 0, currentCell: 0, targetCell: 0,
@@ -58,15 +50,22 @@ const FF = {
   avoid: null,
   // Edges the mouse has actually *observed*: the three sides it scans in a cell
   // plus every corridor it has driven through. An edge that is seen and carries
-  // no wall is safe to drive; anything else is still unknown. The goal-first
+  // no wall is safe to drive; anything else is still unknown. The round-trip
   // strategy plans its return and its sprint on seen edges only, so the sprint
   // can never be stopped by a wall the mouse has not met yet.
   seen: null,
+  // Edges that were driven before the centre was reached — the outbound path.
+  // The RETURN phase forbids them, forcing a genuinely different route home.
+  outboundPath: null,
+  avoidOutboundPath: false,
   safeOnly: false,
+
   begin() {
     this.flood = [];
     this.avoid = new Uint8Array(CELLS);
     this.seen = new Uint8Array(CELLS);
+    this.outboundPath = new Uint8Array(CELLS);
+    this.avoidOutboundPath = false;
     this.safeOnly = false;
     for (let i = 0; i < CELLS; i++) this.flood.push({ flood: 255, nb: 0, visited: 0 });
     this.startCell = 0; this.currentCell = 0; this.startDir = DIR_N;
@@ -97,11 +96,13 @@ const FF = {
   },
 
   // an edge the planner may use: inside the maze, no known wall, not provisionally
-  // blocked, and (in safe mode) actually observed by a sensor or by driving it
+  // blocked, not on the outbound path (when forbidden), and (in safe mode) actually
+  // observed by a sensor or by driving it
   passable(loc, d) {
     if (!this.neighbourValid(loc, d)) return false;
     if (this.wallExists(loc, d)) return false;
     if (this.avoid[loc] & (1 << d)) return false;
+    if (this.avoidOutboundPath && (this.outboundPath[loc] & (1 << d))) return false;
     if (this.safeOnly && !(this.seen[loc] & (1 << d))) return false;
     return true;
   },
@@ -118,6 +119,31 @@ const FF = {
       const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
       this.avoid[n] |= (1 << ((d + 2) % 4));
     }
+  },
+  markOutboundPath(loc, d) {
+    this.outboundPath[loc] |= (1 << d);
+    if (this.neighbourValid(loc, d)) {
+      const n = loc + DIR_DR[d] * MAZE_N + DIR_DC[d];
+      this.outboundPath[n] |= (1 << ((d + 2) % 4));
+    }
+  },
+  isOutboundEdge(loc, d) { return !!(this.outboundPath[loc] & (1 << d)); },
+
+  /* STRICT divergent-return test: is there a route from the current cell to the
+     start that (a) uses only edges the mouse has already observed, and (b) uses
+     no outbound edge whatsoever? That is what makes the return trip a genuinely
+     different route — not a one-cell detour that re-joins the outbound path. */
+  hasDivergentReturn() {
+    const save = { safeOnly: this.safeOnly, avoidOutboundPath: this.avoidOutboundPath };
+    const savedFloods = this.flood.map(c => c.flood);
+    this.safeOnly = true;
+    this.avoidOutboundPath = true;
+    this.setFloodToTargets([this.startCell]);
+    const reachable = this.flood[this.currentCell].flood !== 255;
+    for (let i = 0; i < CELLS; i++) this.flood[i].flood = savedFloods[i];
+    this.safeOnly = save.safeOnly;
+    this.avoidOutboundPath = save.avoidOutboundPath;
+    return reachable;
   },
 
   neighbourValid(loc, d) {
@@ -174,62 +200,22 @@ const FF = {
     return L === 255 ? -1 : L;
   },
 
-  /* Post-goal explorer: which cell is still worth visiting?
-     A cell can only matter if the shortest route that *could* run
-     start -> cell -> goal — unknown cells assumed open, known walls respected —
-     is shorter than the best route the map already proves. Those cells are
-     scored by how far the car would have to drive to reach them, so the sweep
-     starts with the goal's own surroundings and works outward.
-     Returns -1 when no unexplored cell can improve the run any more. */
-  findImprovingUnvisited(bestKnown) {
-    const save = this.safeOnly;
-    this.safeOnly = false;                       // optimistic: unknown = open
-    this.setFloodToTargets([this.startCell]);
-    const dS = this.flood.map(f => f.flood);     // optimistic start -> cell
-    this.setFloodToTargets(GOAL_CELLS);
-    const dG = this.flood.map(f => f.flood);     // optimistic cell -> goal
-    this.safeOnly = save;
-
-    const dist = new Int16Array(CELLS).fill(-1);
-    const q = [this.currentCell];
-    dist[this.currentCell] = 0;
-    let best = -1, bestDrive = 1e9, bestPot = 1e9;
-    let h = 0;
-    while (h < q.length) {
-      const loc = q[h++];
-      const d = dist[loc];
-      if (best >= 0 && d > bestDrive) break;     // BFS order: nothing closer left
-      if (!this.flood[loc].visited && this.flood[loc].nb !== 0x0F &&
-          dS[loc] !== 255 && dG[loc] !== 255 && dS[loc] + dG[loc] < bestKnown) {
-        const pot = dS[loc] + dG[loc];
-        if (d < bestDrive || (d === bestDrive && pot < bestPot)) {
-          best = loc; bestDrive = d; bestPot = pot;
-        }
-      }
-      for (let dd = 0; dd < 4; dd++) {
-        if (!this.passable(loc, dd)) continue;
-        const n = loc + DIR_DR[dd] * MAZE_N + DIR_DC[dd];
-        if (dist[n] !== -1) continue;
-        dist[n] = d + 1;
-        q.push(n);
-      }
-    }
-    return best;
+  // Reference flood-fill choice order: forward, left, right, then back.
+  referenceDirectionOrder() {
+    return [
+      this.currentDir,
+      (this.currentDir + 3) % 4,
+      (this.currentDir + 1) % 4,
+      (this.currentDir + 2) % 4
+    ];
   },
-
-  // ---- ff_updateTargetCell(): step down the flood gradient ---------------
   updateTargetCell() {
-    const scoreOf = [0, 1, 2, 1];                        // prefer going straight
-    // Strictly downhill only: with a symmetric passability mask the flood is a
-    // consistent distance field, so a strictly lower neighbour always exists and
-    // accepting lateral/uphill steps is what makes a run oscillate A->B->A.
-    let best = this.currentCell, bestD = this.flood[this.currentCell].flood, bestScore = 3;
-    for (let d = 0; d < 4; d++) {
+    let best = this.currentCell, bestD = 255;
+    for (const d of this.referenceDirectionOrder()) {
       if (!this.passable(this.currentCell, d)) continue;
       const n = this.currentCell + DIR_DR[d] * MAZE_N + DIR_DC[d];
       const nd = this.flood[n].flood;
-      const score = scoreOf[(d + 4 - this.currentDir) % 4];
-      if (nd < bestD || (nd === bestD && score < bestScore)) { bestD = nd; bestScore = score; best = n; }
+      if (nd < bestD) { bestD = nd; best = n; }
     }
     this.targetCell = best;
     return best;
@@ -306,14 +292,10 @@ class Supervisor {
     this.cellsAtGoal = 0; this.timeAtGoalMs = 0;   // exploration cost before the sprint
     this.sprintLen = 0;                            // cells in the final speed run
     this.reachedGoal = false;                      // first contact with the centre
-    this.postGoalCells = 0;                        // cells mapped after that contact
-    this.exploreTarget = -1;                       // post-goal cell being worked on
+    this.useAlternateReturn = false;               // RETURN must avoid the outbound path
     this.ctx.log('MAIN', 'boot: I2C + VL6180 + MPU6050 + motors + encoders OK — flood-fill run armed');
-    this.ctx.log('MAIN', `strategy: ${STRATEGY_NAME[STRATEGY]}` +
-      (STRATEGY === 'GOAL_FIRST'
-        ? ' — reach the centre, keep exploring while a better route is possible, ' +
-          'return to start by the best known route, then sprint'
-        : ' — map every reachable cell, return to start, then sprint'));
+    this.ctx.log('MAIN', 'strategy: divergent round-trip — reach the centre, return home by a route that ' +
+      'avoids the outbound path entirely, then sprint the shortest known route from start to centre');
     this.ctx.log('FF', `geometry: wheel ${WHEEL_DIAMETER_MM} mm, cell ${CELL_MM} mm -> ${STEPS_PER_CELL} steps/cell`);
   }
 
@@ -367,25 +349,20 @@ class Supervisor {
       update() {
         ctxActive('FF', mode === 'explore'
           ? 'findNearestUnvisitedCell() + setFloodToTargets() + BFS'
-          : (mode === 'post'
-            ? 'findImprovingUnvisited() + setFloodToTargets() + BFS'
-            : (mode === 'start'
-              ? 'setFloodToTargets(startCell) + BFS'
-              : 'setFloodToTargets(goal) + BFS')));
+          : (mode === 'start'
+            ? 'setFloodToTargets(startCell) + BFS (outbound path forbidden)'
+            : 'setFloodToTargets(goal) + BFS'));
         return r.t - this.t0 >= 20;
       },
       done() {
-        // goal-first plans its return and its sprint on the corridors it has
-        // actually observed, so an unknown wall cannot stop the sprint.
-        FF.safeOnly = (STRATEGY === 'GOAL_FIRST' && (mode === 'goal' || mode === 'start'));
+        // Return and sprint use observed corridors so unknown walls cannot stop them.
+        FF.safeOnly = mode === 'goal' || mode === 'start';
+        FF.avoidOutboundPath = false;
         const flood = () => {
           if (mode === 'explore') {
             const nxt = FF.findNearestUnvisited();
             if (nxt < 0) return false;
             FF.setFloodToTargets([nxt, nxt, nxt, nxt]);
-          } else if (mode === 'post') {
-            if (sup.exploreTarget < 0) return false;
-            FF.setFloodToTargets([sup.exploreTarget, sup.exploreTarget, sup.exploreTarget, sup.exploreTarget]);
           } else if (mode === 'goal' || mode === 'seek') {
             FF.setFloodToTargets(GOAL_CELLS);
           } else {
@@ -393,16 +370,44 @@ class Supervisor {
           }
           return true;
         };
-        if (!flood()) { FF.safeOnly = false; sup.target = -1; return; }
-        sup.target = FF.updateTargetCell();
+
+        if (mode === 'start') {
+          // RETURN: forbid every edge the outbound path used, for the whole phase.
+          FF.avoidOutboundPath = sup.useAlternateReturn;
+          if (!flood()) {
+            FF.avoidOutboundPath = false;
+            FF.safeOnly = false;
+            sup.target = -1;
+            return;
+          }
+          let t = FF.updateTargetCell();
+          if (t === FF.currentCell && FF.avoidOutboundPath) {
+            // Forbidding outbound edges would strand us — relax and head straight home.
+            FF.avoidOutboundPath = false;
+            flood();
+            t = FF.updateTargetCell();
+            sup.ctx.log('WARN', 'outbound edges are the only way home — relaxing the divergent-return constraint');
+          }
+          sup.target = t;
+        } else {
+          if (!flood()) {
+            FF.safeOnly = false;
+            sup.target = -1;
+            return;
+          }
+          sup.target = FF.updateTargetCell();
+        }
+
         if (sup.target === FF.currentCell && FF.safeOnly) {
           // nothing reachable over observed corridors — fall back to the
           // optimistic map (unknown treated as open) and take the risk
           FF.safeOnly = false;
+          FF.avoidOutboundPath = false;
           flood();
           sup.target = FF.updateTargetCell();
         }
         FF.safeOnly = false;
+        FF.avoidOutboundPath = false;
         if (sup.target === FF.currentCell) { sup.target = -1; return; }
         sup.absDir = FF.absDirTo(sup.target);
         sup.rel = (sup.absDir + 4 - FF.currentDir) % 4;
@@ -579,7 +584,6 @@ class Supervisor {
   nextAction(sub) {
     if (!sub) return null;
     if (this.phase === 'EXPLORE' && sub === 'scan') {
-      if (this.exploreComplete()) return this.finishExplore();
       return this.actScan();
     }
     if (sub === 'plan') {
@@ -598,45 +602,38 @@ class Supervisor {
     return null;
   }
 
-  /* Has the exploration phase done its job? FULL_MAP wants every reachable cell.
-     GOAL_FIRST is done once the car has stood in the centre *and* no unexplored
-     cell could still shorten the route it knows (or the post-goal budget ran
-     out). Until the centre has been touched it can never be complete, so a maze
-     where the goal turns out to be unreachable degrades to a full sweep. */
+  /* After the centre is reached, keep exploring nearest-unvisited cells until
+     the map PROVES a fully-divergent return route exists. Stop early at the
+     first of: (a) a divergent route exists, (b) no unvisited cells remain,
+     (c) the exploration budget has been spent. */
   exploreComplete() {
-    if (STRATEGY !== 'GOAL_FIRST') return FF.allVisited();
     if (!this.reachedGoal) return false;
-    if (FF.allVisited()) return true;
-    if (this.postGoalCells >= POST_GOAL_MAX_CELLS) return true;
-    const best = FF.knownRouteLen();
-    if (best < 0) return false;                  // start and goal not yet connected
-    return FF.findImprovingUnvisited(best) < 0;  // nothing left that could help
+    if (FF.hasDivergentReturn()) return true;
+    if (FF.findNearestUnvisited() < 0) return true;
+    const extraCells = FF.visitedCount() - this.cellsAtGoal;
+    if (extraCells >= EXPLORE_BUDGET) {
+      this.ctx.log('WARN',
+        `alternate-return exploration budget (${EXPLORE_BUDGET} cells) exhausted — ` +
+        'falling back to the shortest known route');
+      return true;
+    }
+    return false;
   }
 
-  /* What the explorer floods toward.
-       seek  — before the centre is found: straight at it, unknown cells treated
-               as open, re-planning whenever a wall turns up.
-       post  — after the centre is found: the nearest unexplored cell that could
-               still produce a faster route (see findImprovingUnvisited()).
-       explore — plain nearest-unvisited sweeping, used by FULL_MAP and as the
-               fallback when the optimistic route keeps hitting walls. */
+  /* Before the centre, flood optimistically toward it; after the centre,
+     continue exploring nearest-unvisited cells so a divergent route home
+     can be discovered. */
   exploreMode() {
-    if (STRATEGY !== 'GOAL_FIRST') return 'explore';
     if (!this.reachedGoal) {
       FF.setFloodToTargets(GOAL_CELLS);
       if (FF.flood[FF.currentCell].flood === 255) return 'explore';
       if (this.consecFail >= 2) return 'explore';
       return 'seek';                      // optimistic run at the centre
     }
-    if (this.consecFail >= 2) return 'explore';
-    const best = FF.knownRouteLen();
-    this.exploreTarget = best < 0 ? FF.findNearestUnvisited() : FF.findImprovingUnvisited(best);
-    return 'post';
+    return 'explore';                     // keep opening corridors after the centre
   }
 
-  /* First contact with the centre. For goal-first this is *not* the end of the
-     exploration: the corridors the car drove in on are usually not the fastest
-     ones, so it keeps sweeping the cells that could still shorten the route. */
+  /* First contact with the centre starts the alternate-return exploration. */
   markGoalContact() {
     this.reachedGoal = true;
     this.cellsAtGoal = FF.visitedCount();
@@ -644,26 +641,30 @@ class Supervisor {
     const best = FF.knownRouteLen();
     this.ctx.log('MAIN', `CENTRE REACHED in cell ${FF.currentCell} — ${this.cellsAtGoal}/${CELLS} cells ` +
       `(${(this.cellsAtGoal / CELLS * 100).toFixed(0)}% of the maze) at ${(this.r.t / 1000).toFixed(1)} s, ` +
-      `best known route ${best} cells` +
-      (STRATEGY === 'GOAL_FIRST' ? ' — still exploring for a faster one' : ''));
+      `best known route ${best} cells — exploring for a divergent return route ` +
+      `(cap ${EXPLORE_BUDGET} extra cells)`);
   }
 
   finishExplore() {
     const cells = FF.visitedCount();
-    if (STRATEGY === 'GOAL_FIRST' && this.reachedGoal) {
-      const best = FF.knownRouteLen();
-      this.ctx.log('MAIN', `map optimised: no unexplored cell can beat the ${best}-cell route ` +
-        `— ${cells}/${CELLS} cells mapped (${this.cellsAtGoal} of them before the centre was reached, ` +
-        `${this.postGoalCells} while exploring around it)`);
+    this.useAlternateReturn = this.reachedGoal && FF.hasDivergentReturn();
+    if (this.reachedGoal) {
+      this.ctx.log('MAIN', `exploration complete — ${cells}/${CELLS} cells explored; ` +
+        (this.useAlternateReturn
+          ? 'returning to start by a route that uses NO outbound edge'
+          : 'no fully-divergent return route is available; returning by the shortest known route'));
     } else {
-      this.ctx.log('FF', `explore complete: ${cells} cells mapped — FF_saveMap() to EEPROM`);
+      this.ctx.log('WARN', `centre unreachable after ${cells} cells explored — returning over known safe routes`);
     }
     this.phase = 'RETURN';
     this.sub = undefined;
     this.target = -1;
+    FF.avoidOutboundPath = false;
+    FF.safeOnly = true;
     FF.setFloodToTargets([FF.startCell, FF.startCell, FF.startCell, FF.startCell]);
     this.ctx.log('MAIN', 'phase 2/3: FF_returnToStart() — driving back to the start cell ' +
-      'by the shortest route the map knows (not necessarily the way in)');
+      (this.useAlternateReturn ? 'by a route that avoids the outbound path entirely' : 'by the shortest known route'));
+    FF.safeOnly = false;
     this.phaseStart = this.r.t;
     return null;
   }
@@ -675,6 +676,7 @@ class Supervisor {
       this.sub = undefined;
       this.target = -1;
       this.phaseStart = this.r.t;
+      FF.avoidOutboundPath = false;
       FF.setFloodToTargets(GOAL_CELLS);
       return null;
     }
@@ -682,7 +684,7 @@ class Supervisor {
     this.ctx.log('MAIN', `GOAL REACHED in cell ${FF.currentCell} — run finished ` +
       `(sprint ${this.sprintLen} cells, ${(this.r.t / 1000).toFixed(1)} s total, ` +
       `${FF.visitedCount()} cells explored` +
-      (STRATEGY === 'GOAL_FIRST' ? ` — ${this.cellsAtGoal} before the centre, ${this.postGoalCells} after` : ''));
+      ` — ${this.cellsAtGoal} cells explored before the centre)`);
     this.phase = 'DONE';
     MotorControl.brake(this.r);
     return null;
@@ -719,6 +721,11 @@ class Supervisor {
       this.phase = 'DONE';
       return;
     }
+    if (a.type === 'scan' && this.phase === 'EXPLORE' && this.exploreComplete()) {
+      this.finishExplore();
+      this.sub = undefined;
+      return;
+    }
     if (a.type === 'plan' && this.target < 0) {
       if (this.phase === 'EXPLORE') this.finishExplore();
       else {
@@ -730,11 +737,14 @@ class Supervisor {
     }
     if (a.type === 'drive') {
       if (a.ok) {
+        // Only edges driven BEFORE the centre are recorded as the outbound path —
+        // the divergent-return planning and the post-centre exploration must not
+        // contaminate the set the RETURN phase is required to avoid.
+        if (this.phase === 'EXPLORE' && !this.reachedGoal) FF.markOutboundPath(a.fromCell, FF.currentDir);
         FF.markSeen(a.fromCell, FF.currentDir);   // driven through: certainly open
         FF.currentCell = this.target;
         if (!FF.flood[FF.currentCell].visited) {
           FF.flood[FF.currentCell].visited = 1;
-          if (this.reachedGoal) this.postGoalCells++;
         }
         if (!this.reachedGoal && GOAL_CELLS.includes(FF.currentCell)) this.markGoalContact();
         this.moves++;
@@ -747,7 +757,7 @@ class Supervisor {
         this.consecFail++;
         // Provisional block: even when the wall is not written into the map (the
         // reading was not trusted), the planner must stop proposing this corridor,
-        // otherwise the optimistic goal-first route deadlocks on it.
+        // otherwise the optimistic route deadlocks on it.
         if (a.reason !== 'TIMEOUT') FF.markAvoid(FF.currentCell, FF.currentDir);
         this.ctx.log('FF', `move ${a.reason} — re-planning from cell ${FF.currentCell}` +
           (a.reason === 'TIMEOUT' ? '' : ` (edge ${DIR_NAME[FF.currentDir]} marked unusable)`));
